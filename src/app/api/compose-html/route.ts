@@ -109,13 +109,35 @@ The product photograph is the entire point of this creative. Never bury it.
 
 Think: large-format poster, fashion editorial, modern product campaign.
 
-**Font sizing — ALWAYS use vw units, never px for text:**
-- Headline: 14vw–20vw (tall story), 10vw–14vw (square), 7vw–10vw (landscape)
-- Overline / brand label: 2.8vw–3.5vw
-- Body copy / tagline lines: 2.8vw–3.5vw — this must be clearly readable, never below 2.5vw
-- Icon labels: 1.8vw–2.2vw
-- Vertical edge text: 1.4vw–1.8vw
-- Stat callouts (e.g. "30g PROTEIN"): headline number at 6vw–8vw, unit label at 2vw
+**Font sizing — ALWAYS use vw units, never px for text. Use these exact values per format:**
+
+For **tall story / 9:16** (canvas height > width × 1.4):
+- Headline: 17vw, line-height 0.92
+- Overline: 3.2vw, letter-spacing 0.14em
+- Body copy: 3.2vw, opacity 0.9
+- Vertical edge text: 1.6vw
+- Icon labels: 2.2vw
+- Stat callout number: 8vw, unit: 2.2vw
+
+For **square / 1:1** (canvas width ≈ height):
+- Headline: 13vw, line-height 0.93
+- Overline: 3vw, letter-spacing 0.14em
+- Body copy: 3vw, opacity 0.9
+- Vertical edge text: 1.5vw
+- Icon labels: 2vw
+- Stat callout number: 7vw, unit: 2vw
+
+For **landscape / 16:9** (canvas width > height × 1.4):
+- Headline: 9vw, line-height 0.95
+- Overline: 2.5vw, letter-spacing 0.12em
+- Body copy: 2.5vw, opacity 0.9
+- Icon labels: 1.8vw
+- Stat callout number: 6vw, unit: 1.8vw
+
+For **banner** (canvas width > height × 5):
+- Headline: 6vw, single line, no break
+- Body copy: 2.2vw
+- No icons strip
 
 **Headline rules:**
 - MASSIVE scale using vw — the headline should feel oversized and intentional
@@ -142,14 +164,38 @@ Think: large-format poster, fashion editorial, modern product campaign.
 - Body/labels may fall back to system sans-serif (system-ui, -apple-system, sans-serif) if the custom font feels wrong at small sizes
 - Never use Inter, Roboto, or Arial as the primary typeface
 ${logoSection}
-## PLATFORM-SPECIFIC LAYOUTS
+## PLATFORM-SPECIFIC LAYOUTS — FOLLOW EXACTLY FOR THE FORMAT IN brand_context
 
-Adapt your layout based on the platform dimensions provided:
+**TALL STORY (9:16, height > width × 1.4):**
+- Logo: top-left, height 40–50px, margin 48px from edges
+- Overline: top-left below logo, 3.2vw, uppercase, accent color
+- Headline: positioned so its TOP starts at ~55% canvas height. 17vw, 3 lines, flush-left, margin-left 5%
+- Body copy: 8px below headline, 3.2vw, white, 90% opacity, max 2 lines
+- Feature icons strip: bottom 12–15% of canvas height, left-aligned, starting at margin-left 5%
+- Vertical rotated text (optional): right edge, rotated 90deg, 1.6vw, very subtle
+- DO NOT center everything — always flush-left for headline and body
 
-- **Story (9:16 tall)**: Use bottom-left anchor or top-left bleed pattern. Giant 3-line headline. Brand mark small at top corner. Optional vertical rotated text on right edge.
-- **Square (1:1)**: Bottom-left headline with top-right brand area. Or top-left headline bleeding into image.
-- **Landscape (16:9 or banner)**: Left third is text zone, right two-thirds showcases image. Single large headline with subline below.
-- **Leaderboard banner**: One horizontal row — icon | headline | subline | CTA pill. Keep minimal.
+**SQUARE (1:1, width ≈ height ±20%):**
+- Logo: top-left or top-right corner, height 40px, margin 40px
+- Overline: opposite top corner from logo, 3vw, uppercase, accent color
+- Headline: bottom-left anchor — headline bottom edge at ~78% canvas height. 13vw, 2–3 lines, flush-left, margin-left 5%
+- Body copy: 8px below headline, 3vw, white, 90% opacity, 1–2 lines
+- Feature icons strip: bottom 10–12% of canvas, left-aligned, margin-left 5%
+- DO NOT use center alignment — flush-left always
+
+**LANDSCAPE (16:9, width > height × 1.4):**
+- Text zone: left 45% of canvas width
+- Logo: top-left, height 36px, margin 36px
+- Overline: top-left below logo, 2.5vw, uppercase, accent color
+- Headline: left-aligned, vertical center of canvas, 9vw, 2 lines max
+- Body copy: below headline, 2.5vw, white, 90% opacity
+- Feature icons: below body copy, horizontal row, left-aligned
+- Right 55%: product image zone — no text
+
+**BANNER (width > height × 5):**
+- Single row layout: logo left | headline center | CTA or stat right
+- Headline: 6vw, single line, no wrapping
+- No icons strip — too narrow
 
 ## ICON PLACEMENT — FEATURE STRIP
 
@@ -260,7 +306,9 @@ export async function POST(req: NextRequest) {
     copyInstructions = `Use the tagline as headline: "${brandBible.tagline ?? 'leave blank'}". Body: ${body || brandBible.tone}`
   }
 
-  const brandContext = `Canvas: ${platform.label} (${formatLabel}), ${platform.width}px × ${platform.height}px
+  const brandContext = `Canvas: ${platform.label} — FORMAT TYPE: ${formatLabel.toUpperCase()} — ${platform.width}px × ${platform.height}px`
+  + `\nUse the "${formatLabel.toUpperCase()}" layout rules from the PLATFORM-SPECIFIC LAYOUTS section exactly.
+Canvas: ${platform.label} (${formatLabel}), ${platform.width}px × ${platform.height}px
 Tone: ${brandBible.tone}
 Tagline: ${brandBible.tagline ?? 'none'}
 Colors: primary=${colors.primary}, secondary=${colors.secondary}, accent=${colors.accent}, background=${colors.background}, text=${colors.text}

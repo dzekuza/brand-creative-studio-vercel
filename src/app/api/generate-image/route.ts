@@ -39,23 +39,30 @@ export async function POST(req: NextRequest) {
   const { colors, typography, layout } = body.brandBible
 
   const platformLabel = body.platform.label
-  const aspectNote = body.platform.width > body.platform.height
-    ? 'wide landscape format'
-    : body.platform.width === body.platform.height
-      ? 'square format'
-      : 'tall vertical format'
+  const { width, height } = body.platform
+  const ar = width / height
+  const isStory    = ar < 0.7
+  const isSquare   = Math.abs(ar - 1) < 0.2
+  const isBanner   = ar > 5
+
+  const compositionGuide = isStory
+    ? `COMPOSITION FOR TALL STORY (${width}×${height}px, 9:16): Product must occupy the center-upper zone — roughly top 55–70% of the frame — and feel LARGE and heroic in the vertical space. The product must be fully visible, sharp, and at least 40% of frame area. The bottom 30% of the image MUST fade to near-black via natural vignette or deep shadow — this is the text and icons zone, keep it clean and product-free.`
+    : isSquare
+    ? `COMPOSITION FOR SQUARE FORMAT (${width}×${height}px, 1:1): Product centered or slightly right-of-center, occupying 40–50% of the frame. Product must be sharp and clearly dominant. The bottom 20% must be darker atmosphere for text overlay. Upper corners clear for brand mark placement.`
+    : isBanner
+    ? `COMPOSITION FOR LEADERBOARD BANNER (${width}×${height}px, very wide strip): Product on the right 35% of the image. Left 65% must be a clean, slightly darker gradient area for text overlay. Tight horizontal composition, no bottom strip needed.`
+    : `COMPOSITION FOR LANDSCAPE (${width}×${height}px): Product on the right half or center-right, occupying 40–50% of the frame. Left third is clean atmospheric zone (slightly darker) for text overlay. Product fully visible, sharp, well-lit.`
 
   const stylePrompt = [
-    `FORMAT: ${platformLabel} (${aspectNote}, ${body.platform.width}×${body.platform.height}px).`,
+    `FORMAT: ${platformLabel} (${width}×${height}px).`,
     `BRAND TONE: ${body.brandBible.tone}.`,
     `COLOR PALETTE: dominant background color ${colors.background}, primary accent ${colors.primary}, secondary accent ${colors.accent}.`,
-    `TYPOGRAPHY MOOD: ${typography.weight === 'bold' || Number(typography.weight) >= 700 ? 'strong, confident' : 'clean, refined'} — heading size ${typography.headingSize}, tight letter-spacing ${typography.letterSpacing}.`,
-    `LOGO ZONE: leave clear negative space at the ${layout.logoPosition} corner for a logo icon (approx 80×80px area).`,
-    `PRODUCT PLACEMENT — CRITICAL: The product from the reference image MUST be the undisputed hero. Position it prominently, occupying at least 35–45% of the frame area. Place the product in the center or upper-center of the composition. The product must be sharp, well-lit, and fully visible — never cropped, never tiny, never lost in the background.`,
-    `BOTTOM STRIP: The bottom 30% of the image must transition to a darker, lower-contrast atmospheric zone (natural vignette, dark gradient fade, or deep shadow). This clean dark strip is required for headline text compositing and for a row of small feature icons. Do NOT place the product in this bottom strip.`,
-    `COMPOSITION: cinematic product photography, atmospheric studio or lifestyle lighting, shallow depth-of-field. Strong contrast between the product and background.`,
-    `ABSOLUTE NO: NO text, NO captions, NO watermarks, NO logos, NO UI overlays of any kind. The image must be completely clean of any typography. Text and icons will be composited separately.`,
-    `STYLE: photorealistic, editorial quality, shot for a premium ${platformLabel} ad campaign.`,
+    `TYPOGRAPHY MOOD: ${typography.weight === 'bold' || Number(typography.weight) >= 700 ? 'strong, confident' : 'clean, refined'}.`,
+    `LOGO ZONE: leave clear negative space at the ${layout.logoPosition} corner (~80×80px).`,
+    compositionGuide,
+    `LIGHTING: cinematic studio or lifestyle lighting, atmospheric, shallow depth-of-field. Strong contrast between product and background.`,
+    `ABSOLUTE NO: NO text, NO captions, NO watermarks, NO logos, NO UI overlays. Image must be completely clean — text and icons are composited separately.`,
+    `STYLE: photorealistic, editorial quality, premium ${platformLabel} ad campaign.`,
   ].join(' ')
 
   const productImg = await urlToBase64(body.productImageUrl)
