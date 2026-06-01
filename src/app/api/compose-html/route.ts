@@ -109,8 +109,16 @@ The product photograph is the entire point of this creative. Never bury it.
 
 Think: large-format poster, fashion editorial, modern product campaign.
 
+**Font sizing — ALWAYS use vw units, never px for text:**
+- Headline: 14vw–20vw (tall story), 10vw–14vw (square), 7vw–10vw (landscape)
+- Overline / brand label: 2.8vw–3.5vw
+- Body copy / tagline lines: 2.8vw–3.5vw — this must be clearly readable, never below 2.5vw
+- Icon labels: 1.8vw–2.2vw
+- Vertical edge text: 1.4vw–1.8vw
+- Stat callouts (e.g. "30g PROTEIN"): headline number at 6vw–8vw, unit label at 2vw
+
 **Headline rules:**
-- MASSIVE scale. The headline should feel oversized and intentional — roughly 25–45% of canvas height for story formats (9:16), 18–28% for square (1:1)
+- MASSIVE scale using vw — the headline should feel oversized and intentional
 - Break the headline into 2–3 stacked lines, flush-left, for visual drama
 - Use font-weight 800–900, letter-spacing -0.02em to -0.04em (tight tracking), line-height 0.9–1.0
 - Let the headline overlap the product image — that visual tension is intentional art direction
@@ -124,9 +132,9 @@ Think: large-format poster, fashion editorial, modern product campaign.
 - Never center-align everything. Never stack all text in one rectangular block in the middle.
 
 **Secondary text:**
-- Overline (uppercase, letter-spacing 0.14em, font-size 12–14px, font-weight 600) in accent color or full white — placed above or below headline. Must be clearly legible, opacity 0.9 minimum.
-- Body copy: 14–16px, opacity 0.85 minimum, maximum 2 lines, positioned away from the headline so the layout breathes
-- Optional: one piece of text rotated 90° flush to a side edge (vertical label) — keep it 11–13px, opacity 0.7 minimum, full white or accent color
+- Overline (uppercase, letter-spacing 0.14em, font-size 3vw, font-weight 600) in accent color or full white — placed above or below headline. Opacity 0.9 minimum.
+- Body copy: 3vw minimum, opacity 0.9 minimum, maximum 2 lines, positioned away from the headline so the layout breathes. Must be clearly readable at a glance — if it feels small, go bigger.
+- Optional: vertical edge text rotated 90° — 1.5vw, opacity 0.75 minimum, full white or accent color
 
 **Font rules:**
 - Always load the provided custom font via @font-face using the font URL from brand_context
@@ -158,9 +166,9 @@ Build a prominent feature badge row at the **bottom of the canvas** (positioned 
 - SVG icon inside: 36–44px, white fill or stroke, centered
 
 **Label text (MANDATORY — always show):**
-- Font size: 13–15px
-- Font weight: 600–700
-- Color: white (opacity 1.0 — full white, no dimming)
+- Font size: 2vw (never below 1.8vw)
+- Font weight: 700
+- Color: white, opacity 1.0 — full white, no dimming
 - Letter-spacing: 0.10em
 - Text-transform: uppercase
 - Max 2 words per label
