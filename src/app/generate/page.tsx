@@ -73,9 +73,9 @@ export default function GeneratePage() {
         <div className="h-px bg-border mb-8" />
 
         {/* Main layout: controls left, results right */}
-        <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-10 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr] gap-8 xl:gap-10 items-start">
           {/* Controls panel */}
-          <div className="xl:sticky xl:top-6">
+          <div className="lg:sticky lg:top-6">
             <div className="rounded-2xl border border-border bg-card p-6">
               <GenerateForm
                 brandBible={bible}

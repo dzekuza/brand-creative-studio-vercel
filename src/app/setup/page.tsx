@@ -34,7 +34,7 @@ export default function SetupPage() {
           </div>
 
           {/* Step indicators */}
-          <div className="hidden lg:flex items-center gap-1 shrink-0">
+          <div className="hidden md:flex items-center gap-1 shrink-0">
             {STEPS.map((step, i) => {
               const Icon = step.icon
               const isActive = i === 0
@@ -63,11 +63,11 @@ export default function SetupPage() {
         <div className="h-px bg-border mb-8" />
 
         {/* Two-column layout on desktop */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_340px] gap-8 xl:gap-10">
           <ProductForm onComplete={handleComplete} />
 
           {/* Right sidebar — tips */}
-          <aside className="hidden xl:block space-y-4">
+          <aside className="hidden lg:block space-y-4">
             <div className="rounded-2xl border border-border bg-muted/40 p-5">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">What you need</p>
               <ul className="space-y-2.5">
