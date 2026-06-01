@@ -10,47 +10,64 @@ const FONT_MIME: Record<string, string> = {
   ttf:   'font/ttf',
   otf:   'font/otf',
 }
+const IMAGE_MIME: Record<string, string> = {
+  png:  'image/png',
+  jpg:  'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  svg:  'image/svg+xml',
+}
 
-const ALLOWED_FONT_EXTS = new Set(['woff2', 'woff', 'ttf', 'otf'])
+const ALLOWED_FONT_EXTS  = new Set(['woff2', 'woff', 'ttf', 'otf'])
+const ALLOWED_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'svg'])
 
-async function fontToDataUri(relativeUrl: string): Promise<string> {
-  // Reject anything that looks suspicious before touching the filesystem
-  if (
-    relativeUrl.includes('\0') ||          // null bytes
-    relativeUrl.includes('\\') ||          // backslash traversal
-    /^\//.test(relativeUrl) === false       // must start with /
-      ? false
-      : /^\//.test(relativeUrl) &&
-        !/^\/uploads\/[^/]+$/.test(relativeUrl) // must match /uploads/<filename> exactly
-  ) {
-    throw new Error('Invalid font path')
-  }
-
-  // Strict allowlist: only /uploads/<single-segment-filename>
+async function uploadsFileToDataUri(relativeUrl: string, allowedExts: Set<string>, mimeMap: Record<string, string>): Promise<string> {
   if (!/^\/uploads\/[^/\\]+$/.test(relativeUrl) || relativeUrl.includes('..')) {
-    throw new Error('Invalid font path')
+    throw new Error('Invalid upload path')
   }
-
   const ext = relativeUrl.split('.').pop()?.toLowerCase() ?? ''
-  if (!ALLOWED_FONT_EXTS.has(ext)) throw new Error('Invalid font extension')
+  if (!allowedExts.has(ext)) throw new Error(`Extension .${ext} not allowed`)
 
-  // Resolve and verify the path stays inside public/ — defeats symlink & encoded traversal attacks
   const publicRoot = await realpath(join(process.cwd(), 'public'))
-  const candidate = join(publicRoot, relativeUrl)
-  const resolved = await realpath(candidate)
-
+  const candidate  = join(publicRoot, relativeUrl)
+  const resolved   = await realpath(candidate)
   if (resolved !== publicRoot && !resolved.startsWith(publicRoot + sep)) {
-    throw new Error('Invalid font path')
+    throw new Error('Invalid upload path')
   }
 
-  const mime = FONT_MIME[ext]!
-  const buf = await readFile(resolved)
+  const mime = mimeMap[ext]!
+  const buf  = await readFile(resolved)
   return `data:${mime};base64,${buf.toString('base64')}`
 }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
-const SYSTEM_PROMPT = `You are a senior art director at a top creative agency specializing in bold editorial advertising. Your task is to produce a single complete HTML document that will be used for Puppeteer screenshotting. The HTML must overlay typography and icons onto a background product photo at exact pixel dimensions.
+const AD_TYPE_COPY_GUIDANCE: Record<string, string> = {
+  'brand-awareness': 'Write emotionally resonant, aspirational copy. Headline: short, poetic, evocative (3–6 words). Body: brand feeling, not features. No hard sell. Tone: warm, confident, human.',
+  'sales':           'Write offer-first, conversion-focused copy. Headline: lead with the benefit or discount (e.g. "50% OFF", "Limited Drop"). Body: urgency + clear value proposition. Include a short CTA phrase (e.g. "Shop Now", "Get Yours").',
+  'product-launch':  'Write excitement-building copy. Headline: announcement framing ("Introducing", "Meet", "Now Available"). Body: 1 key differentiator + novelty hook. Tone: energetic, confident.',
+  'engagement':      'Write community-first, relatable copy. Headline: question, challenge, or bold opinion. Body: invite participation or reaction. Tone: conversational, fun, authentic.',
+  'custom':          'Write copy exactly matching the campaign context provided. Use the tone, angle, and messaging described.',
+}
+
+function buildSystemPrompt(hasLogo: boolean): string {
+  const logoSection = hasLogo ? `
+## LOGO PLACEMENT
+
+A brand logo is provided. Place it using this exact img tag — do NOT expand or replace the placeholder:
+  <img src="__LOGO_DATA_URI__" alt="logo" style="...">
+
+- Position at the logoPosition corner from brand_context (e.g. top-left → top: 60px; left: 60px)
+- Keep it small: height 40–60px, width auto, preserving aspect ratio
+- Never stretch, filter, or recolor the logo
+- Use \`object-fit: contain\` if using CSS sizing
+` : `
+## LOGO
+
+No logo provided. Do not add any logo placeholder or logo element to the HTML.
+`
+
+  return `You are a senior art director at a top creative agency specializing in bold editorial advertising. Your task is to produce a single complete HTML document that will be used for Puppeteer screenshotting. The HTML must overlay typography and icons onto a background product photo at exact pixel dimensions.
 
 You will be provided with complete brand context including canvas dimensions, brand colors, typography specifications, copy, and assets:
 
@@ -75,6 +92,10 @@ The product photograph is the entire point of this creative. Never bury it.
 - At most, you may place a LOCALIZED text-legibility aid only directly behind/below text — a blurred radial gradient or tight linear gradient of at most 0.35 opacity covering no more than 25% of the canvas edge where text sits
 - Text legibility comes primarily from strong CSS text-shadow (0 2px 32px rgba) and bold font weight — NOT from covering the image
 - Let the product image breathe and dominate the composition
+
+## AD COPY GENERATION
+
+{{COPY_INSTRUCTIONS}}
 
 ## TYPOGRAPHY STYLE — EDITORIAL POSTER
 
@@ -104,7 +125,7 @@ Think: large-format poster, fashion editorial, modern product campaign.
 - Use the custom font for the headline
 - Body/labels may fall back to system sans-serif (system-ui, -apple-system, sans-serif) if the custom font feels wrong at small sizes
 - Never use Inter, Roboto, or Arial as the primary typeface
-
+${logoSection}
 ## PLATFORM-SPECIFIC LAYOUTS
 
 Adapt your layout based on the platform dimensions provided:
@@ -144,6 +165,7 @@ Adapt your layout based on the platform dimensions provided:
 <scratchpad>
 Think through:
 - Which platform layout pattern best suits these dimensions?
+- What is the headline (generate it if ad type is set and none was provided)?
 - How will you break the headline into 2–3 dramatic lines?
 - Which word/line gets the accent color?
 - Where exactly will you position each text element?
@@ -152,8 +174,8 @@ Think through:
 </scratchpad>
 
 Now write the complete HTML document inside <html_output> tags. Remember: raw HTML only, starting with <!DOCTYPE html>.`
+}
 
-// Truncate an SVG to keep only the outer tag + first 600 chars of content — enough for shape info, avoids token bloat
 function truncateSvg(svg: string, maxChars = 600): string {
   if (svg.length <= maxChars) return svg
   const closeIdx = svg.indexOf('>')
@@ -163,7 +185,7 @@ function truncateSvg(svg: string, maxChars = 600): string {
 
 export async function POST(req: NextRequest) {
   const input: CompositorInput = await req.json()
-  const { backgroundImageBase64, brandBible, fontUrl, fontName, iconSvgs, headline, body, platform } = input
+  const { backgroundImageBase64, brandBible, fontUrl, fontName, iconSvgs, headline, body, platform, logoUrl, adType, adContext } = input
   const { colors, typography, layout } = brandBible
 
   const aspectRatio = platform.width / platform.height
@@ -171,15 +193,29 @@ export async function POST(req: NextRequest) {
     aspectRatio > 2.5 ? 'wide leaderboard banner' :
     Math.abs(aspectRatio - 1) < 0.2 ? 'square' : 'landscape'
 
-  // Limit icons to 2 max and truncate SVG bodies to reduce input tokens
   const trimmedIcons = iconSvgs.filter(Boolean).slice(0, 2).map(truncateSvg)
 
-  // Embed font as base64 data URI so Puppeteer doesn't need to resolve relative paths
   let fontDataUri = fontUrl
   try {
-    fontDataUri = await fontToDataUri(fontUrl)
-  } catch {
-    // fall back to original URL if file read fails (e.g. external URL)
+    fontDataUri = await uploadsFileToDataUri(fontUrl, ALLOWED_FONT_EXTS, FONT_MIME)
+  } catch { /* fall back to original URL */ }
+
+  let logoDataUri: string | null = null
+  if (logoUrl) {
+    try {
+      logoDataUri = await uploadsFileToDataUri(logoUrl, ALLOWED_IMAGE_EXTS, IMAGE_MIME)
+    } catch { /* skip logo if unreadable */ }
+  }
+
+  // Build copy instructions based on whether headline is provided or AI should generate it
+  let copyInstructions: string
+  if (headline) {
+    copyInstructions = `The headline has been provided by the user — use it exactly as given: "${headline}"\nBody copy: ${body || '(none — use brand tone)'}`
+  } else if (adType) {
+    const guidance = AD_TYPE_COPY_GUIDANCE[adType] ?? AD_TYPE_COPY_GUIDANCE['custom']
+    copyInstructions = `No headline was provided. You MUST generate all copy (headline, body, overline, CTA if applicable) based on the following:\n\nAd Type: ${adType}\nCopy Strategy: ${guidance}\nCampaign Context: ${adContext || '(none — infer from brand bible and tone)'}\n\nGenerate copy that fits this ad type and feels native to the brand.`
+  } else {
+    copyInstructions = `Use the tagline as headline: "${brandBible.tagline ?? 'leave blank'}". Body: ${body || brandBible.tone}`
   }
 
   const brandContext = `Canvas: ${platform.label} (${formatLabel}), ${platform.width}px × ${platform.height}px
@@ -189,38 +225,48 @@ Colors: primary=${colors.primary}, secondary=${colors.secondary}, accent=${color
 Typography: headingSize=${typography.headingSize}, bodySize=${typography.bodySize}, weight=${typography.weight}, letterSpacing=${typography.letterSpacing}
 Layout: padding=${layout.padding}, logoPosition=${layout.logoPosition}
 Brand rules: ${brandBible.rules.slice(0, 2).join('; ')}
-Headline: ${headline}
-Body: ${body || '(none)'}
 Font family: ${fontName}
-Font URL: url('__FONT_DATA_URI__') — literal placeholder, do NOT expand (injected server-side like __BG_IMAGE__)
+Font URL: url('__FONT_DATA_URI__') — literal placeholder, do NOT expand
 Background image: url('data:image/png;base64,__BG_IMAGE__') — literal placeholder, do NOT expand
+Logo: ${logoDataUri ? 'provided — use <img src="__LOGO_DATA_URI__"> as shown in the Logo section' : 'none'}
 Icons (${trimmedIcons.length}):
 ${trimmedIcons.map((svg, i) => `Icon ${i + 1}:\n${svg}`).join('\n\n')}`
 
-  const userMessage = SYSTEM_PROMPT.replace('{{BRAND_CONTEXT}}', brandContext)
+  const systemPrompt = buildSystemPrompt(!!logoDataUri)
+    .replace('{{BRAND_CONTEXT}}', brandContext)
+    .replace('{{COPY_INSTRUCTIONS}}', copyInstructions)
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
-    messages: [{ role: 'user', content: userMessage }],
+    max_tokens: 8000,
+    messages: [{ role: 'user', content: systemPrompt }],
   })
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : ''
 
-  // Extract from <html_output> tags if present, otherwise fall back to stripping markdown fences
-  const htmlOutputMatch = raw.match(/<html_output>([\s\S]*?)<\/html_output>/i)
-  const stripped = htmlOutputMatch
+  const htmlOutputMatch = raw.match(/<html_output>([\s\S]*?)(?:<\/html_output>|$)/i)
+  const doctypeMatch    = raw.match(/(<!DOCTYPE[\s\S]*)/i)
+
+  const candidate = htmlOutputMatch
     ? htmlOutputMatch[1].trim()
-    : raw.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+    : doctypeMatch
+      ? doctypeMatch[1].trim()
+      : raw.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+
+  const stripped = candidate.endsWith('</html>')
+    ? candidate
+    : candidate.includes('</body>')
+      ? candidate + '\n</html>'
+      : candidate
 
   if (!stripped.startsWith('<!DOCTYPE') && !stripped.startsWith('<html')) {
     return NextResponse.json({ error: 'Claude did not return valid HTML', raw }, { status: 500 })
   }
 
-  // Inject real data in place of placeholders — Claude never sees the actual base64 blobs
   const html = stripped
     .replace(/__BG_IMAGE__/g, backgroundImageBase64)
     .replace(/__FONT_DATA_URI__/g, fontDataUri)
+    .replace(/__LOGO_DATA_URI__/g, logoDataUri ?? '')
 
   return NextResponse.json({ html })
 }

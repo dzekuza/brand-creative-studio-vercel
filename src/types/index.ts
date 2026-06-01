@@ -34,7 +34,10 @@ export type UploadedAssets = {
   fontUrl: string
   fontName: string
   iconUrls: string[]
+  logoUrl?: string
 }
+
+export type AdType = 'brand-awareness' | 'sales' | 'product-launch' | 'engagement' | 'custom'
 
 export type GenerateRequest = {
   platform: Platform
@@ -51,6 +54,8 @@ export type Creative = {
   error?: string
 }
 
+export type ImageProvider = 'google' | 'gateway'
+
 export type CompositorInput = {
   backgroundImageBase64: string
   brandBible: BrandBible
@@ -60,4 +65,7 @@ export type CompositorInput = {
   headline: string
   body: string
   platform: Platform
+  logoUrl?: string
+  adType?: AdType
+  adContext?: string
 }

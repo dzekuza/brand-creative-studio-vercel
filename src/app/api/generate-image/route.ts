@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateText } from 'ai'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import type { BrandBible, Platform } from '@/types'
+import type { BrandBible, ImageProvider, Platform } from '@/types'
 
 type GenerateImageRequest = {
   prompt: string
@@ -10,6 +10,7 @@ type GenerateImageRequest = {
   styleRefUrls: string[]
   brandBible: BrandBible
   platform: Platform
+  provider?: ImageProvider
 }
 
 const SAFE_UPLOAD_RE = /^\/uploads\/[\w-]+\.(jpg|jpeg|png|webp|svg)$/i
@@ -54,6 +55,34 @@ export async function POST(req: NextRequest) {
     body.styleRefUrls.slice(0, 3).map(url => urlToBase64(url))
   )
 
+  const useGoogle = body.provider === 'google' ||
+    (!body.provider && process.env.IMAGE_PROVIDER === 'google')
+
+  if (useGoogle) {
+    const { GoogleGenAI } = await import('@google/genai')
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+
+    const parts = [
+      { text: `${body.prompt}. ${stylePrompt}` },
+      { inlineData: { mimeType: productImg.mimeType, data: productImg.data } },
+      ...styleImgs.map(s => ({ inlineData: { mimeType: s.mimeType, data: s.data } })),
+    ]
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: [{ role: 'user', parts }],
+    })
+
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(
+      (p: { inlineData?: { data?: string } }) => p.inlineData
+    )
+    if (!imagePart?.inlineData?.data) {
+      return NextResponse.json({ error: 'No image in Gemini response' }, { status: 500 })
+    }
+    return NextResponse.json({ imageBase64: imagePart.inlineData.data })
+  }
+
+  // Vercel AI Gateway (default)
   const result = await generateText({
     model: 'google/gemini-3.1-flash-image-preview',
     messages: [
@@ -81,7 +110,6 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // Gemini multimodal returns images in result.files
   const imageFile = result.files?.find(f => f.mediaType?.startsWith('image/'))
   if (!imageFile?.base64) {
     return NextResponse.json({ error: 'No image returned from AI Gateway' }, { status: 500 })

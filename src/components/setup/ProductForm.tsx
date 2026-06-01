@@ -119,6 +119,14 @@ export function ProductForm({ onComplete }: Props) {
             onUploaded={urls => setAssets(a => ({ ...a, iconUrls: urls }))}
           />
         </div>
+        <div className="space-y-1.5">
+          <Label>Brand Logo <span className="text-muted-foreground text-xs">(optional — placed in creatives)</span></Label>
+          <FileUploadZone
+            label="Upload logo"
+            accept="image/png,image/webp,image/svg+xml,.svg"
+            onUploaded={([url]) => setAssets(a => ({ ...a, logoUrl: url }))}
+          />
+        </div>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

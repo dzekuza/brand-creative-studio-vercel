@@ -36,9 +36,14 @@ export default function GeneratePage() {
             <h1 className="text-2xl font-bold">Generate Creatives</h1>
             <p className="text-muted-foreground mt-1">Your brand bible is ready. Generate on-brand ads.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => router.push('/setup')}>
-            ← Edit Brand
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
+              Switch Engine
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/setup')}>
+              ← Edit Brand
+            </Button>
+          </div>
         </div>
 
         <GenerateForm
