@@ -22,6 +22,16 @@ export async function POST(req: NextRequest) {
   const aspectNote = platform.width > platform.height ? 'landscape' :
     platform.width === platform.height ? 'square' : 'tall vertical (story/portrait)'
 
+  // Detect actual image format from base64 magic bytes
+  function detectMediaType(b64: string): 'image/png' | 'image/jpeg' | 'image/webp' {
+    if (b64.startsWith('/9j/')) return 'image/jpeg'
+    if (b64.startsWith('iVBOR')) return 'image/png'
+    if (b64.startsWith('UklGR')) return 'image/webp'
+    return 'image/png'
+  }
+
+  const mediaType = detectMediaType(imageBase64)
+
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
@@ -31,7 +41,7 @@ export async function POST(req: NextRequest) {
         content: [
           {
             type: 'image',
-            source: { type: 'base64', media_type: 'image/png', data: imageBase64 },
+            source: { type: 'base64', media_type: mediaType, data: imageBase64 },
           },
           {
             type: 'text',
