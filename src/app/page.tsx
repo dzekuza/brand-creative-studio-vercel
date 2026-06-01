@@ -49,11 +49,13 @@ export default function HomePage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           {MODES.map(mode => (
-            <button
+            <div
               key={mode.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => selectMode(mode.id)}
-              className={`group rounded-xl border-2 bg-card p-8 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode.accent}`}
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && selectMode(mode.id)}
+              className={`group cursor-pointer rounded-xl border-2 bg-card p-8 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode.accent}`}
             >
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-2">
@@ -78,7 +80,7 @@ export default function HomePage() {
                   </Button>
                 </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
 
