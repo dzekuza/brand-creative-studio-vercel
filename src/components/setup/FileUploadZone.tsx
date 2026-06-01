@@ -8,18 +8,27 @@ type Props = {
   multiple?: boolean
   maxFiles?: number
   onUploaded: (urls: string[], names: string[]) => void
+  initialUrls?: string[]
 }
 
 const IMAGE_ACCEPT = ['image/jpeg', 'image/png', 'image/webp']
 
-export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10, onUploaded }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [previewUrls, setPreviewUrls] = useState<string[]>([])
-  const [uploaded, setUploaded] = useState<string[]>([])
-  const [error, setError] = useState<string>()
+function filenameFromUrl(url: string): string {
+  return url.split('/').pop()?.split('?')[0] ?? url
+}
 
+export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10, onUploaded, initialUrls }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null)
   const showPreviews = IMAGE_ACCEPT.some(t => accept.includes(t))
+
+  const [uploading, setUploading] = useState(false)
+  const [previewUrls, setPreviewUrls] = useState<string[]>(() =>
+    showPreviews && initialUrls?.length ? initialUrls : []
+  )
+  const [uploaded, setUploaded] = useState<string[]>(() =>
+    initialUrls?.length ? initialUrls.map(filenameFromUrl) : []
+  )
+  const [error, setError] = useState<string>()
 
   async function handleFiles(files: FileList) {
     const list = Array.from(files).slice(0, maxFiles)
@@ -71,20 +80,11 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
       {hasPreview ? (
         <div className="relative">
           {previewUrls.length === 1 ? (
-            <img
-              src={previewUrls[0]}
-              alt="Preview"
-              className="w-full h-40 object-cover"
-            />
+            <img src={previewUrls[0]} alt="Preview" className="w-full h-40 object-cover" />
           ) : (
             <div className="grid grid-cols-3 gap-0.5 bg-border">
               {previewUrls.map((url, i) => (
-                <img
-                  key={i}
-                  src={url}
-                  alt={`Preview ${i + 1}`}
-                  className="w-full h-24 object-cover bg-muted"
-                />
+                <img key={i} src={url} alt={`Preview ${i + 1}`} className="w-full h-24 object-cover bg-muted" />
               ))}
             </div>
           )}

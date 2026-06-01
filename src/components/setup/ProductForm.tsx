@@ -1,25 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { FileUploadZone } from './FileUploadZone'
 import { BrandBiblePreview } from './BrandBiblePreview'
-import { saveBrandBible } from '@/lib/brand-bible'
+import { saveBrandBible, loadBrandBible } from '@/lib/brand-bible'
+import { saveSetup, loadSetup } from '@/lib/saved-setup'
 import { extractColors } from '@/lib/color-extract'
 import type { BrandBible, UploadedAssets } from '@/types'
 
 type Props = { onComplete: (bible: BrandBible, assets: UploadedAssets) => void }
 
+function readSetup() {
+  if (typeof window === 'undefined') return null
+  return loadSetup()
+}
+
 export function ProductForm({ onComplete }: Props) {
-  const [productName, setProductName] = useState('')
-  const [description, setDescription] = useState('')
-  const [assets, setAssets] = useState<Partial<UploadedAssets>>({})
-  const [generating, setGenerating] = useState(false)
-  const [bible, setBible] = useState<BrandBible | null>(null)
+  const [productName, setProductName] = useState(() => readSetup()?.productName ?? '')
+  const [description, setDescription]  = useState(() => readSetup()?.description ?? '')
+  const [assets, setAssets]            = useState<Partial<UploadedAssets>>(() => readSetup()?.assets ?? {})
+  const [generating, setGenerating]    = useState(false)
+  const [bible, setBible]              = useState<BrandBible | null>(() =>
+    typeof window !== 'undefined' ? loadBrandBible() : null
+  )
   const [error, setError] = useState<string>()
+
+  // Persist form state on every change so reload restores it
+  useEffect(() => {
+    saveSetup({ productName, description, assets })
+  }, [productName, description, assets])
 
   async function generate() {
     if (!productName || !assets.productImageUrl || !assets.fontUrl) {
@@ -86,6 +99,7 @@ export function ProductForm({ onComplete }: Props) {
           <FileUploadZone
             label="Upload product image"
             accept="image/jpeg,image/png,image/webp"
+            initialUrls={assets.productImageUrl ? [assets.productImageUrl] : undefined}
             onUploaded={([url]) => setAssets(a => ({ ...a, productImageUrl: url }))}
           />
         </div>
@@ -96,6 +110,7 @@ export function ProductForm({ onComplete }: Props) {
             accept="image/jpeg,image/png,image/webp"
             multiple
             maxFiles={5}
+            initialUrls={assets.styleRefUrls?.length ? assets.styleRefUrls : undefined}
             onUploaded={urls => setAssets(a => ({ ...a, styleRefUrls: urls }))}
           />
         </div>
@@ -104,6 +119,7 @@ export function ProductForm({ onComplete }: Props) {
           <FileUploadZone
             label="Upload font file"
             accept=".ttf,.otf,.woff,.woff2"
+            initialUrls={assets.fontUrl ? [assets.fontUrl] : undefined}
             onUploaded={([url], [name]) =>
               setAssets(a => ({ ...a, fontUrl: url, fontName: name.replace(/\.[^.]+$/, '') }))
             }
@@ -116,6 +132,7 @@ export function ProductForm({ onComplete }: Props) {
             accept="image/svg+xml,.svg"
             multiple
             maxFiles={10}
+            initialUrls={assets.iconUrls?.length ? assets.iconUrls : undefined}
             onUploaded={urls => setAssets(a => ({ ...a, iconUrls: urls }))}
           />
         </div>
@@ -124,6 +141,7 @@ export function ProductForm({ onComplete }: Props) {
           <FileUploadZone
             label="Upload logo"
             accept="image/png,image/webp,image/svg+xml,.svg"
+            initialUrls={assets.logoUrl ? [assets.logoUrl] : undefined}
             onUploaded={([url]) => setAssets(a => ({ ...a, logoUrl: url }))}
           />
         </div>
