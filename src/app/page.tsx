@@ -36,6 +36,12 @@ export default function HomePage() {
 
   function selectMode(provider: ImageProvider) {
     localStorage.setItem('brand-creative-studio:provider', provider)
+    // Apply theme immediately so the next page loads with the correct colour scheme
+    if (provider === 'gateway') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
     router.push('/setup')
   }
 
