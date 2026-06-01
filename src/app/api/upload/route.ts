@@ -22,9 +22,16 @@ export async function POST(req: NextRequest) {
   }
 
   const filename = `${uuidv4()}.${ext}`
+  const isVercel = !!process.env.VERCEL
+
+  if (isVercel && !process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json(
+      { error: 'Blob storage not configured. Add a Vercel Blob store to this project in the Vercel dashboard (Storage → Create → Blob).' },
+      { status: 503 },
+    )
+  }
 
   if (process.env.BLOB_READ_WRITE_TOKEN) {
-    // Production (Vercel): store in Vercel Blob
     const blob = await put(`uploads/${filename}`, file, { access: 'public' })
     return NextResponse.json({ url: blob.url, name: file.name })
   }
