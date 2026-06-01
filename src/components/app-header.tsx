@@ -7,36 +7,37 @@ import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger";
 import { navLinks } from "@/components/app-shared";
 import { NavUser } from "@/components/nav-user";
-import { BellIcon } from "lucide-react";
+import { Bell } from "lucide-react";
 
 const activeItem = navLinks.find((item) => item.isActive);
 
 export function AppHeader() {
-	return (
-		<header
-			className={cn(
-				"pxx-4 mb-6 flex items-center justify-between gap-2 md:px-2"
-			)}
-		>
-			<div className="flex items-center gap-3">
-				<CustomSidebarTrigger />
-				<Separator
-					className="mr-2 h-4 data-[orientation=vertical]:self-center"
-					orientation="vertical"
-				/>
-				<AppBreadcrumbs page={activeItem} />
-			</div>
-			<div className="flex items-center gap-3">
-				<Button aria-label="Notifications" size="icon" variant="ghost">
-					<BellIcon
-					/>
-				</Button>
-				<Separator
-					className="h-4 data-[orientation=vertical]:self-center"
-					orientation="vertical"
-				/>
-				<NavUser />
-			</div>
-		</header>
-	);
+  return (
+    <header className={cn("mb-6 flex items-center justify-between gap-2 md:px-2")}>
+      <div className="flex items-center gap-3">
+        <CustomSidebarTrigger />
+        <Separator
+          className="mr-2 h-4 data-[orientation=vertical]:self-center"
+          orientation="vertical"
+        />
+        <AppBreadcrumbs page={activeItem} />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button
+          aria-label="Notifications"
+          size="icon"
+          variant="ghost"
+          className="size-8 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Bell className="size-4" />
+        </Button>
+        <Separator
+          className="h-4 data-[orientation=vertical]:self-center"
+          orientation="vertical"
+        />
+        <NavUser />
+      </div>
+    </header>
+  );
 }
