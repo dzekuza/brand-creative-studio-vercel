@@ -25,8 +25,15 @@ export function CreativeCard({ creative }: Props) {
         />
       )}
       {creative.status === 'generating' && (
-        <div className="aspect-square flex items-center justify-center bg-muted">
-          <p className="text-sm text-muted-foreground animate-pulse">Generating…</p>
+        <div
+          className="w-full animate-shimmer"
+          style={{ aspectRatio: `${creative.platform.width} / ${creative.platform.height}` }}
+        >
+          <div className="w-full h-full flex flex-col justify-end p-4 gap-2">
+            <div className="h-3 w-1/3 rounded bg-white/10" />
+            <div className="h-8 w-3/4 rounded bg-white/10" />
+            <div className="h-8 w-1/2 rounded bg-white/10" />
+          </div>
         </div>
       )}
       {creative.status === 'error' && (

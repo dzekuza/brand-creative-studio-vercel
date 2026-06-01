@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PLATFORMS } from '@/lib/platforms'
-import { buildCreativeHtml } from '@/lib/html-compositor'
+
 import { v4 as uuidv4 } from 'uuid'
+import { saveCreatives } from '@/lib/creative-history'
 import type { BrandBible, Creative, UploadedAssets } from '@/types'
 
 type Props = {
@@ -65,16 +65,22 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate }: Props) {
         const resolvedHeadline = headline || brandBible.tagline || 'Your Headline Here'
         const resolvedBody = body || brandBible.tone
 
-        const html = buildCreativeHtml({
-          backgroundImageBase64: imageBase64,
-          brandBible,
-          fontUrl: assets.fontUrl,
-          fontName: assets.fontName,
-          iconSvgs,
-          headline: resolvedHeadline,
-          body: resolvedBody,
-          platform,
+        const composeRes = await fetch('/api/compose-html', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            backgroundImageBase64: imageBase64,
+            brandBible,
+            fontUrl: assets.fontUrl,
+            fontName: assets.fontName,
+            iconSvgs,
+            headline: resolvedHeadline,
+            body: resolvedBody,
+            platform,
+          }),
         })
+        if (!composeRes.ok) throw new Error(await composeRes.text())
+        const { html } = await composeRes.json()
 
         const renderRes = await fetch('/api/render', {
           method: 'POST',
@@ -99,6 +105,7 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate }: Props) {
       }
     })
 
+    saveCreatives(final)
     onCreativesUpdate(final)
     setGenerating(false)
   }
@@ -107,16 +114,36 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate }: Props) {
     <div className="space-y-5">
       <div className="space-y-1.5">
         <Label>Platform</Label>
-        <Select value={platformId} onValueChange={v => v && setPlatformId(v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {PLATFORMS.map(p => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.label} ({p.width}×{p.height})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="grid grid-cols-2 gap-2">
+          {PLATFORMS.map(p => {
+            const ar = p.width / p.height
+            const isSelected = platformId === p.id
+            // Small aspect-ratio shape preview capped to a visual box
+            const previewW = ar >= 1 ? 28 : Math.round(28 * ar)
+            const previewH = ar <= 1 ? 28 : Math.round(28 / ar)
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPlatformId(p.id)}
+                className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  isSelected
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border bg-transparent text-muted-foreground hover:border-border/80 hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                <span
+                  className={`shrink-0 rounded-sm border ${isSelected ? 'border-primary bg-primary/20' : 'border-muted-foreground/40 bg-muted'}`}
+                  style={{ width: previewW, height: previewH }}
+                />
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium leading-tight truncate">{p.label}</span>
+                  <span className="block text-[11px] leading-tight opacity-60">{p.width}×{p.height}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="space-y-1.5">

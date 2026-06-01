@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
 
 type Props = {
   label: string
@@ -11,11 +10,16 @@ type Props = {
   onUploaded: (urls: string[], names: string[]) => void
 }
 
+const IMAGE_ACCEPT = ['image/jpeg', 'image/png', 'image/webp']
+
 export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [uploaded, setUploaded] = useState<string[]>([])
   const [error, setError] = useState<string>()
+
+  const showPreviews = IMAGE_ACCEPT.some(t => accept.includes(t))
 
   async function handleFiles(files: FileList) {
     const list = Array.from(files).slice(0, maxFiles)
@@ -34,6 +38,7 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
       const urls = results.map(r => r.url)
       const names = results.map(r => r.name)
       setUploaded(names)
+      if (showPreviews) setPreviewUrls(urls)
       onUploaded(urls, names)
     } catch (e) {
       setError(String(e))
@@ -42,9 +47,11 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
     }
   }
 
+  const hasPreview = showPreviews && previewUrls.length > 0
+
   return (
     <div
-      className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+      className="border-2 border-dashed border-border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors"
       onClick={() => inputRef.current?.click()}
       onDragOver={e => e.preventDefault()}
       onDrop={e => {
@@ -60,14 +67,57 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
         className="hidden"
         onChange={e => e.target.files && handleFiles(e.target.files)}
       />
-      <p className="text-sm font-medium text-foreground">{label}</p>
-      {uploading && <p className="text-xs text-muted-foreground mt-2">Uploading…</p>}
-      {uploaded.length > 0 && !uploading && (
-        <p className="text-xs text-green-600 mt-2">✓ {uploaded.join(', ')}</p>
+
+      {hasPreview ? (
+        <div className="relative">
+          {previewUrls.length === 1 ? (
+            <img
+              src={previewUrls[0]}
+              alt="Preview"
+              className="w-full h-40 object-cover"
+            />
+          ) : (
+            <div className="grid grid-cols-3 gap-0.5 bg-border">
+              {previewUrls.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`Preview ${i + 1}`}
+                  className="w-full h-24 object-cover bg-muted"
+                />
+              ))}
+            </div>
+          )}
+          <div className="absolute bottom-0 inset-x-0 bg-black/40 px-3 py-1.5 flex items-center justify-between">
+            <span className="text-xs text-white font-medium truncate">
+              {uploaded.length === 1 ? uploaded[0] : `${uploaded.length} files`}
+            </span>
+            <span className="text-xs text-white/70 shrink-0 ml-2">Click to replace</span>
+          </div>
+        </div>
+      ) : (
+        <div className="p-6 text-center">
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          {uploading && <p className="text-xs text-muted-foreground mt-2">Uploading…</p>}
+          {uploaded.length > 0 && !uploading && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-2">✓ {uploaded.join(', ')}</p>
+          )}
+          {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+          {!uploading && uploaded.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">Click or drag & drop</p>
+          )}
+        </div>
       )}
-      {error && <p className="text-xs text-destructive mt-2">{error}</p>}
-      {!uploading && uploaded.length === 0 && (
-        <p className="text-xs text-muted-foreground mt-1">Click or drag & drop</p>
+
+      {uploading && (
+        <div className="px-3 py-2 bg-muted text-center">
+          <p className="text-xs text-muted-foreground">Uploading…</p>
+        </div>
+      )}
+      {error && (
+        <div className="px-3 py-2">
+          <p className="text-xs text-destructive">{error}</p>
+        </div>
       )}
     </div>
   )

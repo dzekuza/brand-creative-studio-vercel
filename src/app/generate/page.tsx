@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { loadBrandBible } from '@/lib/brand-bible'
+import { AppShell } from '@/components/app-shell'
 import { GenerateForm } from '@/components/generate/GenerateForm'
 import { CreativeGrid } from '@/components/generate/CreativeGrid'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@ export default function GeneratePage() {
 
   useEffect(() => {
     const b = loadBrandBible()
-    const rawAssets = sessionStorage.getItem('brand-creative-studio:assets')
+    const rawAssets = localStorage.getItem('brand-creative-studio:assets')
     if (!b || !rawAssets) {
       router.replace('/setup')
       return
@@ -28,24 +29,26 @@ export default function GeneratePage() {
   if (!bible || !assets) return null
 
   return (
-    <main className="max-w-4xl mx-auto py-10 px-4 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Generate Creatives</h1>
-          <p className="text-muted-foreground mt-1">Your brand bible is ready. Generate on-brand ads.</p>
+    <AppShell>
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Generate Creatives</h1>
+            <p className="text-muted-foreground mt-1">Your brand bible is ready. Generate on-brand ads.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => router.push('/setup')}>
+            ← Edit Brand
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => router.push('/setup')}>
-          ← Edit Brand
-        </Button>
+
+        <GenerateForm
+          brandBible={bible}
+          assets={assets}
+          onCreativesUpdate={setCreatives}
+        />
+
+        {creatives.length > 0 && <CreativeGrid creatives={creatives} />}
       </div>
-
-      <GenerateForm
-        brandBible={bible}
-        assets={assets}
-        onCreativesUpdate={setCreatives}
-      />
-
-      {creatives.length > 0 && <CreativeGrid creatives={creatives} />}
-    </main>
+    </AppShell>
   )
 }
