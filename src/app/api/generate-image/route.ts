@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenAI, Modality } from '@google/genai'
+import { GoogleGenAI } from '@google/genai'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import type { BrandBible, Platform } from '@/types'
@@ -47,9 +47,8 @@ export async function POST(req: NextRequest) {
   ]
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-preview-image-generation',
+    model: 'gemini-2.5-flash-image',
     contents: [{ role: 'user', parts }],
-    config: { responseModalities: [Modality.IMAGE] },
   })
 
   const imagePart = response.candidates?.[0]?.content?.parts?.find(
