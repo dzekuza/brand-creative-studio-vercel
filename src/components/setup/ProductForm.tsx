@@ -14,25 +14,32 @@ import type { BrandBible, UploadedAssets } from '@/types'
 
 type Props = { onComplete: (bible: BrandBible, assets: UploadedAssets) => void }
 
-function readSetup() {
-  if (typeof window === 'undefined') return null
-  return loadSetup()
-}
-
 export function ProductForm({ onComplete }: Props) {
-  const [productName, setProductName] = useState(() => readSetup()?.productName ?? '')
-  const [description, setDescription]  = useState(() => readSetup()?.description ?? '')
-  const [assets, setAssets]            = useState<Partial<UploadedAssets>>(() => readSetup()?.assets ?? {})
+  const [productName, setProductName] = useState('')
+  const [description, setDescription]  = useState('')
+  const [assets, setAssets]            = useState<Partial<UploadedAssets>>({})
   const [generating, setGenerating]    = useState(false)
-  const [bible, setBible]              = useState<BrandBible | null>(() =>
-    typeof window !== 'undefined' ? loadBrandBible() : null
-  )
+  const [bible, setBible]              = useState<BrandBible | null>(null)
   const [error, setError] = useState<string>()
+  const [loaded, setLoaded] = useState(false)
 
-  // Persist form state on every change so reload restores it
+  // Load persisted state after hydration
   useEffect(() => {
+    const saved = loadSetup()
+    if (saved) {
+      setProductName(saved.productName)
+      setDescription(saved.description)
+      setAssets(saved.assets)
+    }
+    setBible(loadBrandBible())
+    setLoaded(true)
+  }, [])
+
+  // Persist form state on every change — only after initial load to avoid overwriting with empty state
+  useEffect(() => {
+    if (!loaded) return
     saveSetup({ productName, description, assets })
-  }, [productName, description, assets])
+  }, [productName, description, assets, loaded])
 
   async function generate() {
     if (!productName || !assets.productImageUrl || !assets.fontUrl) {
