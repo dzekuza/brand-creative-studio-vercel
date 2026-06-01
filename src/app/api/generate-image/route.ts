@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateText } from 'ai'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { fetchBlobAsset } from '@/lib/fetch-blob'
 import type { BrandBible, ImageProvider, Platform } from '@/types'
 
 type GenerateImageRequest = {
@@ -20,12 +21,9 @@ const MIME_MAP: Record<string, string> = {
 
 async function urlToBase64(url: string): Promise<{ data: string; mimeType: string }> {
   if (url.startsWith('https://') || url.startsWith('http://')) {
-    // Vercel Blob or any absolute URL — fetch it
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`Failed to fetch asset: ${url}`)
-    const buffer = Buffer.from(await res.arrayBuffer())
-    const ext = url.split('.').pop()?.toLowerCase() ?? ''
-    const mimeType = MIME_MAP[ext] ?? (res.headers.get('content-type')?.split(';')[0].trim() ?? 'image/jpeg')
+    const ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? ''
+    const expectedMime = MIME_MAP[ext]
+    const { buffer, mimeType } = await fetchBlobAsset(url, expectedMime)
     return { data: buffer.toString('base64'), mimeType }
   }
   // Local dev: read from public/uploads/

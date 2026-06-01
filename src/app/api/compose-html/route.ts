@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile, realpath } from 'fs/promises'
 import { join, sep } from 'path'
 import Anthropic from '@anthropic-ai/sdk'
+import { fetchBlobAsset } from '@/lib/fetch-blob'
 import type { CompositorInput } from '@/types'
 
 const FONT_MIME: Record<string, string> = {
@@ -26,12 +27,10 @@ async function uploadsFileToDataUri(url: string, allowedExts: Set<string>, mimeM
   if (!allowedExts.has(ext)) throw new Error(`Extension .${ext} not allowed`)
 
   if (url.startsWith('https://') || url.startsWith('http://')) {
-    // Vercel Blob URL — fetch it
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`Failed to fetch asset: ${url}`)
-    const buf = Buffer.from(await res.arrayBuffer())
-    const mime = mimeMap[ext] ?? res.headers.get('content-type')?.split(';')[0].trim() ?? 'application/octet-stream'
-    return `data:${mime};base64,${buf.toString('base64')}`
+    const expectedMime = mimeMap[ext]
+    const { buffer, mimeType } = await fetchBlobAsset(url, expectedMime)
+    const mime = mimeMap[ext] ?? mimeType
+    return `data:${mime};base64,${buffer.toString('base64')}`
   }
 
   // Local dev: read from public/ filesystem
