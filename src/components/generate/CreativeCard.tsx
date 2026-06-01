@@ -15,7 +15,7 @@ export function CreativeCard({ creative }: Props) {
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={`overflow-hidden${creative.status === 'generating' ? ' py-0' : ''}`}>
       {creative.status === 'done' && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
