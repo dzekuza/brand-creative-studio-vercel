@@ -14,7 +14,12 @@ type GenerateImageRequest = {
   platform: Platform
 }
 
+const SAFE_UPLOAD_RE = /^\/uploads\/[\w-]+\.(jpg|jpeg|png|webp|svg)$/i
+
 async function urlToBase64(publicUrl: string): Promise<{ data: string; mimeType: string }> {
+  if (!SAFE_UPLOAD_RE.test(publicUrl)) {
+    throw new Error(`Unsafe file URL: ${publicUrl}`)
+  }
   const filePath = join(process.cwd(), 'public', publicUrl)
   const buffer = await readFile(filePath)
   const ext = publicUrl.split('.').pop()?.toLowerCase() ?? 'jpg'
