@@ -124,9 +124,9 @@ Think: large-format poster, fashion editorial, modern product campaign.
 - Never center-align everything. Never stack all text in one rectangular block in the middle.
 
 **Secondary text:**
-- Small overline (uppercase, letter-spacing 0.14em) in accent color, placed above or below headline — typically the brand name or a short statement
-- Body copy: small size, low opacity (0.72), maximum 2 lines, positioned away from the headline so the layout breathes
-- Optional when space allows: one piece of text rotated 90° flush to a side edge (vertical label showing season, edition, or statement word)
+- Overline (uppercase, letter-spacing 0.14em, font-size 12–14px, font-weight 600) in accent color or full white — placed above or below headline. Must be clearly legible, opacity 0.9 minimum.
+- Body copy: 14–16px, opacity 0.85 minimum, maximum 2 lines, positioned away from the headline so the layout breathes
+- Optional: one piece of text rotated 90° flush to a side edge (vertical label) — keep it 11–13px, opacity 0.7 minimum, full white or accent color
 
 **Font rules:**
 - Always load the provided custom font via @font-face using the font URL from brand_context
@@ -145,19 +145,36 @@ Adapt your layout based on the platform dimensions provided:
 
 ## ICON PLACEMENT — FEATURE STRIP
 
-Icons provided in brand_context are brand SVG icons. Use them to build a feature badge row at the **bottom of the canvas**, sitting inside the dark bottom strip of the background image.
+Build a prominent feature badge row at the **bottom of the canvas** (positioned 32–48px from the bottom edge), sitting inside the dark bottom strip of the background image.
+
+**Layout:**
+- Horizontal flex row, left-aligned with 32–40px gap between badges
+- Each badge = icon circle + label stacked vertically (or icon left / label right inline — pick whichever fits the platform width)
+
+**Icon circle:**
+- Size: 72–88px diameter circle (use width/height: 80px; border-radius: 50%)
+- Border: 2px solid white (opacity 0.6) — must be clearly visible
+- Background: rgba(0,0,0,0.35) — subtle dark fill so it reads against any background
+- SVG icon inside: 36–44px, white fill or stroke, centered
+
+**Label text (MANDATORY — always show):**
+- Font size: 13–15px
+- Font weight: 600–700
+- Color: white (opacity 1.0 — full white, no dimming)
+- Letter-spacing: 0.10em
+- Text-transform: uppercase
+- Max 2 words per label
+- Place directly below (or right of) the icon circle with 6–8px gap
 
 **If icons are provided (count > 0):**
-- Arrange all provided icons in a horizontal flex row, centered or left-aligned, positioned 24–40px from the bottom edge
-- Each icon: wrap in a small container with a subtle circular or hexagonal border (2px solid, brand accent color at 0.5 opacity, or white at 0.25 opacity)
-- Below (or next to) each icon, add a 2–3 word benefit label in small uppercase text (10–12px, letter-spacing 0.12em, white or accent color at 0.8 opacity) — infer the label from the icon's visual content or the brand tone if you can't determine it
-- Icon container size: 48–60px square
-- This creates a professional "feature proof strip" at the bottom, similar to premium supplement/skincare ad creatives
+- Use the provided SVGs — scale them to 40px inside the circle
+- Infer a 1–2 word label from each icon or from the brand tone
 
 **If no icons are provided:**
-- Optionally generate 3–4 simple inline SVG icons (line-art style, 24×24 viewBox) representing key product benefits inferred from the brand tone and product description — e.g. a leaf for natural, a star for premium, a drop for hydration, a bolt for energy
-- Apply the same layout as above
-- Keep the SVG paths minimal and clean — single-stroke, no fills, white stroke
+- Generate 3–4 minimal inline SVGs (line-art, 24×24 viewBox, single white stroke, stroke-width 1.5, no fill) representing product benefits — e.g. a lightning bolt for energy, a leaf for natural, a shield for protection, a star for premium
+- Apply same badge layout above
+
+**VISIBILITY REQUIREMENT:** The feature strip must be clearly readable at a glance. If the background is dark, use full white (not tinted). Never use opacity below 0.85 on the labels.
 
 ## COLOR USAGE
 
