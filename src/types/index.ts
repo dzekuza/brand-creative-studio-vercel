@@ -1,57 +1,63 @@
 export type Platform = {
-  id: string;
-  label: string;
-  width: number;
-  height: number;
-};
+  id: string
+  label: string
+  width: number
+  height: number
+}
 
 export type BrandBible = {
   colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    neutral: string;
-  };
+    primary: string
+    secondary: string
+    accent: string
+    background: string
+    text: string
+  }
   typography: {
-    fontFamily: string;
-    headingSize: number;
-    bodySize: number;
-    fontWeight: 'light' | 'normal' | 'bold';
-  };
+    headingSize: string
+    bodySize: string
+    weight: string
+    letterSpacing: string
+  }
   layout: {
-    margin: number;
-    padding: number;
-    borderRadius: number;
-  };
-  tone: string;
-  rules: string[];
-};
+    padding: string
+    logoPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  }
+  tone: string
+  tagline?: string
+  rules: string[]
+}
 
 export type UploadedAssets = {
-  productImages: string[];
-  styleReferences: string[];
-  fonts: string[];
-  icons: string[];
-};
+  productImageUrl: string
+  styleRefUrls: string[]
+  fontUrl: string
+  fontName: string
+  iconUrls: string[]
+}
 
 export type GenerateRequest = {
-  platform: Platform;
-  brandBible: BrandBible;
-  uploadedAssets: UploadedAssets;
-  prompt: string;
-};
+  platform: Platform
+  prompt: string
+  adCopy?: { headline: string; body: string }
+  count: number
+}
 
 export type Creative = {
-  id: string;
-  png: string; // base64 encoded PNG
-  platform: string;
-  status: 'success' | 'error';
-  error?: string;
-};
+  id: string
+  pngBase64: string
+  platform: Platform
+  status: 'pending' | 'generating' | 'done' | 'error'
+  error?: string
+}
 
 export type CompositorInput = {
-  platform: Platform;
-  brandBible: BrandBible;
-  uploadedAssets: UploadedAssets;
-  prompt: string;
-};
+  backgroundImageBase64: string
+  brandBible: BrandBible
+  fontUrl: string
+  fontName: string
+  iconSvgs: string[]
+  headline: string
+  body: string
+  platform: Platform
+}
