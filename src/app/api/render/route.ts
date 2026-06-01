@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import puppeteer from 'puppeteer'
+import chromium from '@sparticuz/chromium'
+import puppeteer from 'puppeteer-core'
+
+// Allow up to 60s — rendering 1080px canvases with embedded fonts takes time
+export const maxDuration = 60
 
 type RenderRequest = {
   html: string
@@ -7,12 +11,37 @@ type RenderRequest = {
   height: number
 }
 
+async function getExecutablePath(): Promise<string> {
+  if (process.env.CHROME_EXECUTABLE_PATH) {
+    return process.env.CHROME_EXECUTABLE_PATH
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    const { access } = await import('fs/promises')
+    const candidates = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+    ]
+    for (const p of candidates) {
+      try { await access(p); return p } catch { /* try next */ }
+    }
+  }
+  return chromium.executablePath()
+}
+
 export async function POST(req: NextRequest) {
   const { html, width, height }: RenderRequest = await req.json()
 
+  const executablePath = await getExecutablePath()
+  const isLocal = process.env.NODE_ENV !== 'production'
+
   const browser = await puppeteer.launch({
+    args: isLocal ? ['--no-sandbox', '--disable-setuid-sandbox'] : chromium.args,
+    defaultViewport: null,
+    executablePath,
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
   })
 
   try {
