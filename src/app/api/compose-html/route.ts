@@ -21,20 +21,29 @@ const IMAGE_MIME: Record<string, string> = {
 const ALLOWED_FONT_EXTS  = new Set(['woff2', 'woff', 'ttf', 'otf'])
 const ALLOWED_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'svg'])
 
-async function uploadsFileToDataUri(relativeUrl: string, allowedExts: Set<string>, mimeMap: Record<string, string>): Promise<string> {
-  if (!/^\/uploads\/[^/\\]+$/.test(relativeUrl) || relativeUrl.includes('..')) {
-    throw new Error('Invalid upload path')
-  }
-  const ext = relativeUrl.split('.').pop()?.toLowerCase() ?? ''
+async function uploadsFileToDataUri(url: string, allowedExts: Set<string>, mimeMap: Record<string, string>): Promise<string> {
+  const ext = url.split('.').pop()?.toLowerCase() ?? ''
   if (!allowedExts.has(ext)) throw new Error(`Extension .${ext} not allowed`)
 
+  if (url.startsWith('https://') || url.startsWith('http://')) {
+    // Vercel Blob URL — fetch it
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Failed to fetch asset: ${url}`)
+    const buf = Buffer.from(await res.arrayBuffer())
+    const mime = mimeMap[ext] ?? res.headers.get('content-type')?.split(';')[0].trim() ?? 'application/octet-stream'
+    return `data:${mime};base64,${buf.toString('base64')}`
+  }
+
+  // Local dev: read from public/ filesystem
+  if (!/^\/uploads\/[^/\\]+$/.test(url) || url.includes('..')) {
+    throw new Error('Invalid upload path')
+  }
   const publicRoot = await realpath(join(process.cwd(), 'public'))
-  const candidate  = join(publicRoot, relativeUrl)
+  const candidate  = join(publicRoot, url)
   const resolved   = await realpath(candidate)
   if (resolved !== publicRoot && !resolved.startsWith(publicRoot + sep)) {
     throw new Error('Invalid upload path')
   }
-
   const mime = mimeMap[ext]!
   const buf  = await readFile(resolved)
   return `data:${mime};base64,${buf.toString('base64')}`

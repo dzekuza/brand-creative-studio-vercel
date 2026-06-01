@@ -14,18 +14,26 @@ type GenerateImageRequest = {
 }
 
 const SAFE_UPLOAD_RE = /^\/uploads\/[\w-]+\.(jpg|jpeg|png|webp|svg)$/i
+const MIME_MAP: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+}
 
-async function urlToBase64(publicUrl: string): Promise<{ data: string; mimeType: string }> {
-  if (!SAFE_UPLOAD_RE.test(publicUrl)) {
-    throw new Error(`Unsafe file URL: ${publicUrl}`)
+async function urlToBase64(url: string): Promise<{ data: string; mimeType: string }> {
+  if (url.startsWith('https://') || url.startsWith('http://')) {
+    // Vercel Blob or any absolute URL — fetch it
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Failed to fetch asset: ${url}`)
+    const buffer = Buffer.from(await res.arrayBuffer())
+    const ext = url.split('.').pop()?.toLowerCase() ?? ''
+    const mimeType = MIME_MAP[ext] ?? (res.headers.get('content-type')?.split(';')[0].trim() ?? 'image/jpeg')
+    return { data: buffer.toString('base64'), mimeType }
   }
-  const filePath = join(process.cwd(), 'public', publicUrl)
+  // Local dev: read from public/uploads/
+  if (!SAFE_UPLOAD_RE.test(url)) throw new Error(`Unsafe file URL: ${url}`)
+  const filePath = join(process.cwd(), 'public', url)
   const buffer = await readFile(filePath)
-  const ext = publicUrl.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const mimeMap: Record<string, string> = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
-  }
-  return { data: buffer.toString('base64'), mimeType: mimeMap[ext] ?? 'image/jpeg' }
+  const ext = url.split('.').pop()?.toLowerCase() ?? 'jpg'
+  return { data: buffer.toString('base64'), mimeType: MIME_MAP[ext] ?? 'image/jpeg' }
 }
 
 export async function POST(req: NextRequest) {

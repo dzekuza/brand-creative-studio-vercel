@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { put } from '@vercel/blob'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { v4 as uuidv4 } from 'uuid'
@@ -21,11 +22,17 @@ export async function POST(req: NextRequest) {
   }
 
   const filename = `${uuidv4()}.${ext}`
-  const uploadsDir = join(process.cwd(), 'public', 'uploads')
 
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    // Production (Vercel): store in Vercel Blob
+    const blob = await put(`uploads/${filename}`, file, { access: 'public' })
+    return NextResponse.json({ url: blob.url, name: file.name })
+  }
+
+  // Local dev: write to public/uploads/
+  const uploadsDir = join(process.cwd(), 'public', 'uploads')
   await mkdir(uploadsDir, { recursive: true })
   const buffer = Buffer.from(await file.arrayBuffer())
   await writeFile(join(uploadsDir, filename), buffer)
-
   return NextResponse.json({ url: `/uploads/${filename}`, name: file.name })
 }
