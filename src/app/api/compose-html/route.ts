@@ -143,12 +143,21 @@ Adapt your layout based on the platform dimensions provided:
 - **Landscape (16:9 or banner)**: Left third is text zone, right two-thirds showcases image. Single large headline with subline below.
 - **Leaderboard banner**: One horizontal row — icon | headline | subline | CTA pill. Keep minimal.
 
-## ICON PLACEMENT
+## ICON PLACEMENT — FEATURE STRIP
 
-- Place icons at the logoPosition corner specified in brand_context (e.g., top-left, top-right)
-- Display them in a flex row with small gap (12–16px)
-- Size them appropriately (~5–6% of canvas width)
-- Icons are a small detail, not the focus — do not over-engineer
+Icons provided in brand_context are brand SVG icons. Use them to build a feature badge row at the **bottom of the canvas**, sitting inside the dark bottom strip of the background image.
+
+**If icons are provided (count > 0):**
+- Arrange all provided icons in a horizontal flex row, centered or left-aligned, positioned 24–40px from the bottom edge
+- Each icon: wrap in a small container with a subtle circular or hexagonal border (2px solid, brand accent color at 0.5 opacity, or white at 0.25 opacity)
+- Below (or next to) each icon, add a 2–3 word benefit label in small uppercase text (10–12px, letter-spacing 0.12em, white or accent color at 0.8 opacity) — infer the label from the icon's visual content or the brand tone if you can't determine it
+- Icon container size: 48–60px square
+- This creates a professional "feature proof strip" at the bottom, similar to premium supplement/skincare ad creatives
+
+**If no icons are provided:**
+- Optionally generate 3–4 simple inline SVG icons (line-art style, 24×24 viewBox) representing key product benefits inferred from the brand tone and product description — e.g. a leaf for natural, a star for premium, a drop for hydration, a bolt for energy
+- Apply the same layout as above
+- Keep the SVG paths minimal and clean — single-stroke, no fills, white stroke
 
 ## COLOR USAGE
 
@@ -201,7 +210,7 @@ export async function POST(req: NextRequest) {
     aspectRatio > 2.5 ? 'wide leaderboard banner' :
     Math.abs(aspectRatio - 1) < 0.2 ? 'square' : 'landscape'
 
-  const trimmedIcons = iconSvgs.filter(Boolean).slice(0, 2).map(truncateSvg)
+  const trimmedIcons = iconSvgs.filter(Boolean).slice(0, 6).map(truncateSvg)
 
   let fontDataUri = fontUrl
   try {

@@ -61,22 +61,43 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate }: Props) {
       })
     )
 
-    const results = await Promise.allSettled(
-      ids.map(async id => {
-        const imgRes = await fetch('/api/generate-image', {
+    async function generateAndReview(prompt: string, attempt = 0): Promise<string> {
+      const imgRes = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          productImageUrl: assets.productImageUrl,
+          styleRefUrls: assets.styleRefUrls ?? [],
+          brandBible,
+          platform,
+          provider: imageProvider,
+        }),
+      })
+      if (!imgRes.ok) throw new Error(await imgRes.text())
+      const { imageBase64 } = await imgRes.json()
+
+      // Reviewer agent: max 2 retries
+      if (attempt < 2) {
+        const reviewRes = await fetch('/api/review-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: imagePrompt,
-            productImageUrl: assets.productImageUrl,
-            styleRefUrls: assets.styleRefUrls ?? [],
-            brandBible,
-            platform,
-            provider: imageProvider,
-          }),
+          body: JSON.stringify({ imageBase64, originalPrompt: prompt, platform }),
         })
-        if (!imgRes.ok) throw new Error(await imgRes.text())
-        const { imageBase64 } = await imgRes.json()
+        if (reviewRes.ok) {
+          const review = await reviewRes.json()
+          if (review.decision === 'reject' && review.improvedPrompt) {
+            return generateAndReview(review.improvedPrompt, attempt + 1)
+          }
+        }
+      }
+
+      return imageBase64
+    }
+
+    const results = await Promise.allSettled(
+      ids.map(async id => {
+        const imageBase64 = await generateAndReview(imagePrompt)
 
         const resolvedHeadline = headline || brandBible.tagline || ''
         const resolvedBody = body || ''
