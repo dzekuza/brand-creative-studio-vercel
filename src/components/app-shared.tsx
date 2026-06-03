@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { LayoutGridIcon, ImagePlusIcon, SettingsIcon, HistoryIcon } from 'lucide-react'
+import { LayoutGridIcon, ImagePlusIcon, SettingsIcon, HistoryIcon, LayersIcon } from 'lucide-react'
 
 export type SidebarNavItem = {
   title: string
@@ -22,12 +22,16 @@ export const navGroups: SidebarNavGroup[] = [
         title: 'Dashboard',
         path: '/dashboard',
         icon: <LayoutGridIcon />,
-        isActive: true,
       },
       {
         title: 'Generate',
         path: '/generate',
         icon: <ImagePlusIcon />,
+      },
+      {
+        title: 'Bulk Ads',
+        path: '/bulk-ads',
+        icon: <LayersIcon />,
       },
       {
         title: 'History',

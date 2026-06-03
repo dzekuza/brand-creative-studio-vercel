@@ -5,10 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PLATFORMS } from '@/lib/platforms'
 import { v4 as uuidv4 } from 'uuid'
 import { saveCreatives } from '@/lib/creative-history'
-import type { AdType, BrandBible, Creative, ImageModel, UploadedAssets } from '@/types'
+import type { AdType, BrandBible, Creative, ImageModel, ScrapedProduct, UploadedAssets } from '@/types'
+
+const PRODUCTS_KEY = 'brand-creative-studio:scraped-products'
 
 const IMAGE_MODELS: { id: ImageModel; label: string; sub: string; note?: string }[] = [
   { id: 'gemini-3.1-flash', label: 'Gemini 3.1 Flash', sub: 'Gateway · Multimodal' },
@@ -37,8 +41,7 @@ type Props = {
 export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegisterApprove, onRegisterRecompose, onRegisterApproveSketch }: Props) {
   const [platformId, setPlatformId] = useState(PLATFORMS[0].id)
   const [imageModel, setImageModel] = useState<ImageModel>('gemini-3.1-flash')
-  const [renderMode, setRenderMode] = useState<'html' | 'ai'>('html')
-  const [useWireframes, setUseWireframes] = useState(false)
+  const renderMode = 'ai' as const
   const [adType, setAdType] = useState<AdType | ''>('')
   const [adContext, setAdContext] = useState('')
   const [imagePrompt, setImagePrompt] = useState('')
@@ -47,6 +50,8 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
   const [count, setCount] = useState(3)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string>()
+  const [scrapedProducts, setScrapedProducts] = useState<ScrapedProduct[]>([])
+  const [selectedProductId, setSelectedProductId] = useState<string>('')
 
   // Ref mirror so approval/recompose callbacks see latest creatives without stale closure
   const creativesRef = useRef<Creative[]>([])
@@ -119,6 +124,25 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PRODUCTS_KEY)
+      if (raw) setScrapedProducts(JSON.parse(raw) as ScrapedProduct[])
+    } catch {}
+  }, [])
+
+  const selectedProduct = scrapedProducts.find(p => p.id === selectedProductId) ?? null
+  const effectiveProductImageUrl = selectedProduct?.imageUrl ?? assets.productImageUrl
+
+  function handleProductSelect(id: string) {
+    setSelectedProductId(id)
+    const product = scrapedProducts.find(p => p.id === id)
+    if (product) {
+      if (!headline) setHeadline(product.name)
+      if (!body) setBody(product.description.slice(0, 120))
+    }
+  }
+
   const aiWillGenerateCopy = !!adType && !headline
 
   async function generate() {
@@ -130,7 +154,7 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
     const ids = Array.from({ length: count }, () => uuidv4())
 
     const pending: Creative[] = ids.map(id => ({
-      id, pngBase64: '', platform, status: useWireframes ? 'sketching' : 'generating',
+      id, pngBase64: '', platform, status: 'generating',
     }))
     creativesRef.current = pending
     onCreativesUpdate(pending)
@@ -148,14 +172,16 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt,
-          productImageUrl: assets.productImageUrl,
+          productImageUrl: effectiveProductImageUrl,
           styleRefUrls: assets.styleRefUrls ?? [],
           brandBible,
           platform,
           model: imageModel,
           fullAiMode: renderMode === 'ai',
-          aiHeadline: renderMode === 'ai' ? (headline || brandBible.tagline || '') : undefined,
-          aiBody: renderMode === 'ai' ? (body || '') : undefined,
+          aiHeadline: renderMode === 'ai' && !aiWillGenerateCopy ? (headline || brandBible.tagline || '') : undefined,
+          aiBody: renderMode === 'ai' && !aiWillGenerateCopy ? (body || '') : undefined,
+          adType: renderMode === 'ai' && adType ? adType : undefined,
+          adContext: renderMode === 'ai' && adType ? (adContext || undefined) : undefined,
         }),
       })
       if (!imgRes.ok) throw new Error(await imgRes.text())
@@ -166,31 +192,6 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
     const results = await Promise.allSettled(
       ids.map(async id => {
         let finalPrompt = imagePrompt
-
-        if (useWireframes) {
-          // 1. Generate layout sketches
-          const sketchRes = await fetch('/api/generate-sketches', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ platform, brandBible, prompt: imagePrompt }),
-          })
-          if (sketchRes.ok) {
-            const { sketches } = await sketchRes.json()
-            creativesRef.current = creativesRef.current.map(c =>
-              c.id === id ? { ...c, status: 'sketch-review', sketches } : c
-            )
-            onCreativesUpdate([...creativesRef.current])
-            const approvedDescriptions = await waitForSketchApproval(id)
-            if (approvedDescriptions.length > 0) {
-              finalPrompt = `${imagePrompt}. COMPOSITION REFERENCE: ${approvedDescriptions.join(' | ')}`
-            }
-          }
-          // Whether sketch succeeded or failed, set to generating before image call
-          creativesRef.current = creativesRef.current.map(c =>
-            c.id === id ? { ...c, status: 'generating' } : c
-          )
-          onCreativesUpdate([...creativesRef.current])
-        }
 
         const imageBase64 = await generateImage(finalPrompt)
 
@@ -210,7 +211,7 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
           iconSvgs,
           platform,
           logoUrl: assets.logoUrl,
-          productImageUrl: assets.productImageUrl,
+          productImageUrl: effectiveProductImageUrl,
           adType: adType || undefined,
           adContext: adContext || undefined,
         }
@@ -271,6 +272,86 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
   return (
     <div className="space-y-6">
 
+      {/* Product selector */}
+      {scrapedProducts.length > 0 && (
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">Product</Label>
+          <Select value={selectedProductId} onValueChange={(v) => handleProductSelect(v ?? '')}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="— Use brand assets (no product) —">
+                {(value: string | null) => value
+                  ? (scrapedProducts.find(p => p.id === value)?.name ?? value)
+                  : '— Use brand assets (no product) —'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" label="— Use brand assets (no product) —">— Use brand assets (no product) —</SelectItem>
+              {scrapedProducts.map(p => (
+                <SelectItem key={p.id} value={p.id} label={p.name}>
+                  {p.name}{p.price ? ` · ${p.price}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedProduct && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+              {/* Image area */}
+              <div className="relative w-full aspect-[4/3] bg-muted overflow-hidden">
+                {selectedProduct.imageUrl ? (
+                  <>
+                    <img
+                      src={selectedProduct.imageUrl}
+                      alt={selectedProduct.name}
+                      className="w-full h-full object-cover transition-opacity duration-300"
+                      onError={e => {
+                        const el = e.target as HTMLImageElement
+                        el.style.display = 'none'
+                        const fb = el.parentElement?.querySelector('[data-fallback]') as HTMLElement | null
+                        if (fb) fb.hidden = false
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
+                  </>
+                ) : null}
+                <div data-fallback hidden={!!selectedProduct.imageUrl} className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/40">
+                  <svg className="size-10" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <path d="m21 15-5-5L5 21"/>
+                  </svg>
+                  <span className="text-xs">No image saved</span>
+                </div>
+                {/* Price badge overlaid on image */}
+                {selectedProduct.price && (
+                  <div className="absolute top-2.5 right-2.5">
+                    <Badge variant="secondary" className="bg-background/90 backdrop-blur-sm text-foreground border border-border/60 font-semibold text-xs shadow-sm">
+                      {selectedProduct.price}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* Product info */}
+              <div className="px-3.5 py-3 space-y-1.5">
+                <p className="text-sm font-semibold leading-tight tracking-tight">{selectedProduct.name}</p>
+                {selectedProduct.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{selectedProduct.description}</p>
+                )}
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <svg className="size-3 text-primary shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd"/>
+                  </svg>
+                  <span className="text-[11px] text-primary font-medium">Product image will be used in generation</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="h-px bg-border/50" />
+        </div>
+      )}
+
       {/* Platform */}
       <div className="space-y-2">
         <Label className="text-sm font-semibold">Platform</Label>
@@ -310,40 +391,6 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
 
       <div className="h-px bg-border/50" />
 
-      {/* Render Mode */}
-      <div className="space-y-2.5">
-        <Label className="text-sm font-semibold">Render Mode</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setRenderMode('html')}
-            className={`rounded-xl border p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              renderMode === 'html'
-                ? 'border-primary bg-primary/5 shadow-sm'
-                : 'border-border/60 bg-card hover:border-border hover:bg-accent/30'
-            }`}
-          >
-            <span className={`block text-xs font-semibold leading-tight ${renderMode === 'html' ? 'text-primary' : ''}`}>HTML Overlay</span>
-            <span className="block text-[10px] text-muted-foreground leading-tight mt-1">AI image + Claude typography layer. Editable text.</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setRenderMode('ai')}
-            className={`rounded-xl border p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              renderMode === 'ai'
-                ? 'border-primary bg-primary/5 shadow-sm'
-                : 'border-border/60 bg-card hover:border-border hover:bg-accent/30'
-            }`}
-          >
-            <span className={`block text-xs font-semibold leading-tight ${renderMode === 'ai' ? 'text-primary' : ''}`}>Full AI Image</span>
-            <span className="block text-[10px] text-muted-foreground leading-tight mt-1">Gemini renders text, icons & product in one image.</span>
-          </button>
-        </div>
-        {renderMode === 'ai' && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-400">Full AI mode: text is baked into the image. No editing after generation.</p>
-        )}
-      </div>
-
       {/* Image Model */}
       <div className="space-y-2.5">
         <Label className="text-sm font-semibold">Image Model</Label>
@@ -368,23 +415,6 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
         {IMAGE_MODELS.find(m => m.id === imageModel)?.note && (
           <p className="text-[11px] text-muted-foreground">{IMAGE_MODELS.find(m => m.id === imageModel)?.note}</p>
         )}
-      </div>
-
-      {/* Wireframe toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold leading-tight">Layout Wireframes</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Review composition sketches before generating</p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={useWireframes}
-          onClick={() => setUseWireframes(v => !v)}
-          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${useWireframes ? 'bg-primary' : 'bg-muted'}`}
-        >
-          <span className={`pointer-events-none inline-block size-4 rounded-full bg-background shadow-lg transition-transform ${useWireframes ? 'translate-x-4' : 'translate-x-0'}`} />
-        </button>
       </div>
 
       <div className="h-px bg-border/50" />

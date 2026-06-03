@@ -42,8 +42,7 @@ export function AppSidebar() {
       <SidebarHeader className="h-14 justify-center">
         <SidebarMenuButton render={<a href="/dashboard" />} className="gap-2.5">
           <div
-            className="size-5 rounded-md flex items-center justify-center shrink-0"
-            style={{ background: 'var(--studio-accent)' }}
+            className="size-5 rounded-md flex items-center justify-center shrink-0 bg-[var(--studio-accent)]"
           >
             <StudioMark className="size-3 text-white" />
           </div>
@@ -55,8 +54,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarMenuItem className="flex items-center gap-2">
             <SidebarMenuButton
-              className="min-w-8 text-white duration-200 ease-out hover:opacity-90 active:scale-[0.98] transition-all"
-              style={{ background: 'var(--studio-accent)' }}
+              className="min-w-8 bg-[var(--studio-accent)] text-white duration-200 ease-out hover:opacity-90 active:scale-[0.98] transition-all"
               tooltip="Generate creatives"
               onClick={handleGenerate}
             >

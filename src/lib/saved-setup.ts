@@ -3,8 +3,9 @@ import type { UploadedAssets } from '@/types'
 const KEY = 'brand-creative-studio:setup'
 
 export type SavedSetup = {
-  productName: string
-  description: string
+  brandName: string
+  about: string
+  url: string
   assets: Partial<UploadedAssets>
 }
 

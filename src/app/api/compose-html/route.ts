@@ -313,8 +313,12 @@ export async function POST(req: NextRequest) {
     } catch { /* skip logo if unreadable */ }
   }
 
-  // Product is rendered by the AI image generation step — no separate HTML overlay needed
-  const productDataUri: string | null = null
+  let productDataUri: string | null = null
+  if (input.productImageUrl) {
+    try {
+      productDataUri = await uploadsFileToDataUri(input.productImageUrl, ALLOWED_IMAGE_EXTS, IMAGE_MIME)
+    } catch { /* skip if unreadable */ }
+  }
 
   // Build copy instructions based on whether headline is provided or AI should generate it
   let copyInstructions: string

@@ -4,7 +4,7 @@ import type { BrandBible } from '@/types'
 
 const client = new Anthropic()
 
-const SYSTEM_PROMPT = `You are a brand strategist. Given product information, font, icons, and extracted colors from style references, generate a brand bible as valid JSON. Return ONLY the JSON object, no markdown, no explanation.
+const SYSTEM_PROMPT = `You are a brand strategist. Given brand information extracted from a real website, generate a brand bible as valid JSON. Return ONLY the JSON object, no markdown, no explanation.
 
 The JSON must match this exact shape:
 {
@@ -26,40 +26,54 @@ The JSON must match this exact shape:
     "logoPosition": "top-left"
   },
   "tone": "<one sentence describing brand voice>",
-  "tagline": "<optional short tagline>",
-  "rules": ["<short rule>", "<short rule>"]
+  "tagline": "<short tagline — use the provided one if given, or invent from brand headings>",
+  "rules": ["<short actionable layout/style rule>"]
 }
 
 logoPosition must be one of: "top-left", "top-right", "bottom-left", "bottom-right".
-Choose colors that harmonise with the extracted palette. Rules should be 3-5 short actionable layout/style instructions.`
+Use the real extracted colors from the website when provided — match them closely. Rules should be 3-5 short instructions.`
 
 type BrandBibleRequest = {
-  productName: string
-  description: string
+  brandName: string
+  about?: string
+  url?: string
   fontName: string
+  webFonts?: string[]
   iconNames: string[]
   colorPalette: string[]
-  styleRefDescriptions?: string[]
+  headings?: string[]
+  tagline?: string
 }
 
 export async function POST(req: NextRequest) {
   const body: BrandBibleRequest = await req.json()
 
-  const userMessage = `Product: ${body.productName}
-Description: ${body.description}
-Font: ${body.fontName}
-Icons/SVGs: ${body.iconNames.join(', ') || 'none'}
-Extracted colors from style references: ${body.colorPalette.join(', ') || 'none'}${body.styleRefDescriptions?.length ? '\nStyle reference descriptions: ' + body.styleRefDescriptions.join('; ') : ''}`
+  const parts = [
+    `Brand: ${body.brandName}`,
+    body.url ? `Website: ${body.url}` : '',
+    body.about ? `About: ${body.about}` : '',
+    `Primary font in use: ${body.fontName}`,
+    body.webFonts?.length ? `Other fonts found on site: ${body.webFonts.join(', ')}` : '',
+    `Icons/SVGs: ${body.iconNames.join(', ') || 'none'}`,
+    body.colorPalette.length
+      ? `Colors extracted from website and style references: ${body.colorPalette.join(', ')}`
+      : '',
+    body.headings?.length
+      ? `Real headings found on the website:\n${body.headings.map(h => `- "${h}"`).join('\n')}`
+      : '',
+    body.tagline ? `Meta description / tagline from site: "${body.tagline}"` : '',
+  ].filter(Boolean).join('\n')
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: [{ role: 'user', content: parts }],
     })
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : ''
+    const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
     try {
       const bible = JSON.parse(text) as BrandBible
       return NextResponse.json(bible)

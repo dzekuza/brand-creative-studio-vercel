@@ -85,3 +85,38 @@ export type CompositorInput = {
   adType?: AdType
   adContext?: string
 }
+
+export type BulkAdCopy = {
+  id: string
+  platform: string
+  adType: AdType
+  headline: string
+  body: string
+  cta: string
+  descriptions: string[]
+  imageBase64?: string
+  pngBase64?: string
+  productImageUrl?: string
+  status: 'pending' | 'generating-image' | 'done' | 'error'
+}
+
+export type BulkAdConfig = {
+  productType: 'product' | 'service'
+  subcategory: string
+  description: string
+  targetAudience: string
+  platforms: string[]
+  count: number
+  imageModel: ImageModel
+  canvasId: string
+}
+
+export type ScrapedProduct = {
+  id: string
+  name: string
+  description: string
+  price?: string
+  imageUrl?: string
+  pageUrl?: string
+  imported: boolean
+}

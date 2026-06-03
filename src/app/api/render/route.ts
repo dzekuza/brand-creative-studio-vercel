@@ -34,17 +34,18 @@ async function getExecutablePath(): Promise<string> {
 export async function POST(req: NextRequest) {
   const { html, width, height }: RenderRequest = await req.json()
 
-  const executablePath = await getExecutablePath()
-  const isLocal = process.env.NODE_ENV !== 'production'
-
-  const browser = await puppeteer.launch({
-    args: isLocal ? ['--no-sandbox', '--disable-setuid-sandbox'] : chromium.args,
-    defaultViewport: null,
-    executablePath,
-    headless: true,
-  })
-
+  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null
   try {
+    const executablePath = await getExecutablePath()
+    const isLocal = process.env.NODE_ENV !== 'production'
+
+    browser = await puppeteer.launch({
+      args: isLocal ? ['--no-sandbox', '--disable-setuid-sandbox'] : chromium.args,
+      defaultViewport: null,
+      executablePath,
+      headless: true,
+    })
+
     const page = await browser.newPage()
     await page.setViewport({ width, height, deviceScaleFactor: 1 })
     await page.setContent(html, { waitUntil: 'load', timeout: 30_000 })
@@ -55,7 +56,10 @@ export async function POST(req: NextRequest) {
     })
     const base64 = Buffer.from(screenshot).toString('base64')
     return NextResponse.json({ pngBase64: base64 })
+  } catch (e) {
+    console.error('[render] error', e)
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   } finally {
-    await browser.close()
+    await browser?.close()
   }
 }

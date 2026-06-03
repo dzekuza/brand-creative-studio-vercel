@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { DashboardCard } from '@/components/ui/dashboard-card'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
-import { ImagePlusIcon, SettingsIcon, ChevronRightIcon, TrashIcon } from 'lucide-react'
+import { ImagePlusIcon, SettingsIcon, ChevronRightIcon, Trash2Icon } from 'lucide-react'
 import { clearHistory } from '@/lib/creative-history'
 
 function isBrandConfigured() {
@@ -31,12 +32,12 @@ export function QuickActions() {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <DashboardCard className="md:col-span-2 lg:col-span-2 gap-0">
+      <CardHeader className="border-b">
         <CardTitle>Quick actions</CardTitle>
         <CardDescription>Jump to common tasks.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0 pb-0">
         <ItemGroup className="gap-0">
           <Item size="sm" render={<button type="button" onClick={handleGenerate} className="w-full text-left" />}>
             <ItemMedia variant="icon"><ImagePlusIcon aria-hidden="true" /></ItemMedia>
@@ -61,9 +62,11 @@ export function QuickActions() {
           </Item>
 
           <Item size="sm" render={<button type="button" onClick={handleClearHistory} className="w-full text-left" />}>
-            <ItemMedia variant="icon"><TrashIcon aria-hidden="true" /></ItemMedia>
+            <ItemMedia variant="icon">
+              <Trash2Icon aria-hidden="true" className="text-destructive" />
+            </ItemMedia>
             <ItemContent>
-              <ItemTitle>Clear history</ItemTitle>
+              <ItemTitle className="text-destructive">Clear history</ItemTitle>
               <ItemDescription className="line-clamp-1">Remove all saved creatives from storage.</ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -72,6 +75,6 @@ export function QuickActions() {
           </Item>
         </ItemGroup>
       </CardContent>
-    </Card>
+    </DashboardCard>
   )
 }

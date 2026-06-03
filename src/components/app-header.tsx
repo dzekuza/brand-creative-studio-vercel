@@ -8,10 +8,13 @@ import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger";
 import { navLinks } from "@/components/app-shared";
 import { NavUser } from "@/components/nav-user";
 import { Bell } from "lucide-react";
-
-const activeItem = navLinks.find((item) => item.isActive);
+import { usePathname } from "next/navigation";
 
 export function AppHeader() {
+  const pathname = usePathname();
+  const activeItem = navLinks.find((item) => item.path === pathname)
+    ?? navLinks.find((item) => pathname.startsWith(item.path ?? '___'));
+
   return (
     <header className={cn("mb-6 flex items-center justify-between gap-2 md:px-2")}>
       <div className="flex items-center gap-3">
