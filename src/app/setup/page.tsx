@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppShell } from '@/components/app-shell'
 import { ProductForm } from '@/components/setup/ProductForm'
@@ -30,7 +31,7 @@ const WHAT_GETS_GENERATED = [
   'Brand tagline',
 ]
 
-export default function SetupPage() {
+function SetupPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const required = searchParams.get('required') === '1'
@@ -154,5 +155,13 @@ export default function SetupPage() {
         </div>
       </div>
     </AppShell>
+  )
+}
+
+export default function SetupPage() {
+  return (
+    <Suspense>
+      <SetupPageContent />
+    </Suspense>
   )
 }
