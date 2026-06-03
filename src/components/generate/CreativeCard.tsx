@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
@@ -20,6 +20,7 @@ export function CreativeCard({ creative, onApprove, onRecompose, onApproveSketch
   const [body, setBody] = useState(creative.editableBody ?? '')
   const [selectedSketches, setSelectedSketches] = useState<Set<string>>(new Set())
   const [rendering, setRendering] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const creativeId = creative.id
 
   // Sync text when creative updates (e.g. after recompose)
@@ -31,9 +32,12 @@ export function CreativeCard({ creative, onApprove, onRecompose, onApproveSketch
   // Listen for inline edits from the iframe via postMessage
   useEffect(() => {
     function handler(e: MessageEvent) {
+      // Only accept messages from our own preview iframe
+      if (e.source !== (iframeRef as RefObject<HTMLIFrameElement>).current?.contentWindow) return
       if (e.data?.type !== 'brand-studio-edit') return
-      setHeadline(e.data.headline ?? '')
-      setBody(e.data.body ?? '')
+      // Treat as untrusted strings — slice to reasonable max length
+      setHeadline(String(e.data.headline ?? '').slice(0, 500))
+      setBody(String(e.data.body ?? '').slice(0, 1000))
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
@@ -138,8 +142,10 @@ export function CreativeCard({ creative, onApprove, onRecompose, onApproveSketch
             title="Click on text to edit directly"
           >
             <iframe
+              ref={iframeRef}
               srcDoc={creative.previewHtml}
               title="Creative preview — click text to edit"
+              sandbox="allow-scripts"
               style={{
                 width: creative.platform.width,
                 height: creative.platform.height,
