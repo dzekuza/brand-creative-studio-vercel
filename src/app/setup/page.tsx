@@ -1,11 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AppShell } from '@/components/app-shell'
 import { ProductForm } from '@/components/setup/ProductForm'
-import { saveSetup } from '@/lib/saved-setup'
 import type { BrandBible, UploadedAssets } from '@/types'
-import { Layers, Wand2, ImageIcon, Type } from 'lucide-react'
+import { Layers, Wand2, ImageIcon, Type, AlertCircle } from 'lucide-react'
 
 const STEPS = [
   { icon: ImageIcon, label: 'Product & refs' },
@@ -16,9 +15,10 @@ const STEPS = [
 
 export default function SetupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const required = searchParams.get('required') === '1'
 
   function handleComplete(_bible: BrandBible, assets: UploadedAssets) {
-    saveSetup({ productName: '', description: '', assets })
     localStorage.setItem('brand-creative-studio:assets', JSON.stringify(assets))
     router.push('/generate')
   }
@@ -26,6 +26,16 @@ export default function SetupPage() {
   return (
     <AppShell>
       <div className="animate-fade-in-up py-2" style={{ animationDelay: '0ms' }}>
+        {/* Required banner */}
+        {required && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/30">
+            <AlertCircle className="size-4 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
+            <p className="text-amber-800 dark:text-amber-300">
+              <span className="font-semibold">Brand setup required.</span> Complete your brand profile before generating creatives.
+            </p>
+          </div>
+        )}
+
         {/* Page header */}
         <div className="mb-8 flex items-start justify-between gap-6">
           <div>

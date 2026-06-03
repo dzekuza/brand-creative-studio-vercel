@@ -58,7 +58,7 @@ const AD_TYPE_COPY_GUIDANCE: Record<string, string> = {
   'custom':          'Write copy exactly matching the campaign context provided. Use the tone, angle, and messaging described.',
 }
 
-function buildSystemPrompt(hasLogo: boolean): string {
+function buildSystemPrompt(hasLogo: boolean, hasProduct: boolean): string {
   const logoSection = hasLogo ? `
 ## LOGO PLACEMENT
 
@@ -75,7 +75,25 @@ A brand logo is provided. Place it using this exact img tag — do NOT expand or
 No logo provided. Do not add any logo placeholder or logo element to the HTML.
 `
 
-  return `You are a senior art director at a top creative agency specializing in bold editorial advertising. Your task is to produce a single complete HTML document that will be used for Puppeteer screenshotting. The HTML must overlay typography and icons onto a background product photo at exact pixel dimensions.
+  const productSection = hasProduct ? `
+## PRODUCT IMAGE COMPOSITING
+
+A product image is provided. Place it using this EXACT img tag — do NOT expand or replace the placeholder:
+  <img src="__PRODUCT_DATA_URI__" alt="product" style="...">
+
+Position rules by format:
+- **Tall story (9:16)**: center-upper zone — width: 52%; top: 8%; left: 50%; transform: translateX(-50%); object-fit: contain; max-height: 58%
+- **Square (1:1)**: right-center zone — width: 48%; top: 50%; right: 4%; transform: translateY(-50%); object-fit: contain; max-height: 60%
+- **Landscape (16:9)**: right half — width: 44%; top: 50%; right: 3%; transform: translateY(-50%); object-fit: contain; max-height: 80%
+- **Banner**: right zone — width: 22%; top: 50%; right: 2%; transform: translateY(-50%); object-fit: contain; max-height: 90%
+
+Always use: position: absolute; filter: drop-shadow(0 12px 40px rgba(0,0,0,0.55)); pointer-events: none;
+` : `
+## PRODUCT IMAGE
+No product image provided. Do not add any product placeholder.
+`
+
+  return `You are a senior art director at a top creative agency specializing in bold editorial advertising. Your task is to produce a single complete HTML document that will be used for Puppeteer screenshotting. The HTML must overlay typography and icons onto a background scene at exact pixel dimensions.
 
 You will be provided with complete brand context including canvas dimensions, brand colors, typography specifications, copy, and assets:
 
@@ -141,22 +159,20 @@ For **banner** (canvas width > height × 5):
 
 **Headline rules:**
 - MASSIVE scale using vw — the headline should feel oversized and intentional
-- Break the headline into 2–3 stacked lines, flush-left, for visual drama
+- The ENTIRE headline is ONE single element (one div or h1) with natural CSS line breaks — NEVER split the headline into separate positioned elements
 - Use font-weight 800–900, letter-spacing -0.02em to -0.04em (tight tracking), line-height 0.9–1.0
-- Let the headline overlap the product image — that visual tension is intentional art direction
-- Use the brand accent color for ONE word or line to create contrast; leave the rest in the brand text color
+- You MAY color ONE word with a span (color: accent color) inside the headline element, but the element stays as one block
 - Apply the custom font loaded via @font-face
 
 **Placement patterns — choose based on platform:**
 - A) Bottom-left anchor: headline flush to bottom-left corner, small overline/tagline at top-left, brand mark top-right or top-left
 - B) Top-left bleed: giant headline starting at top-left and bleeding into the image, secondary text at bottom-left, brand mark top-right
-- C) Split diagonal: top text block on one side, bottom text block on opposite side, product centered between them
 - Never center-align everything. Never stack all text in one rectangular block in the middle.
 
 **Secondary text:**
 - Overline (uppercase, letter-spacing 0.14em, font-size 3vw, font-weight 600) in accent color or full white — placed above or below headline. Opacity 0.9 minimum.
-- Body copy: 3vw minimum, opacity 0.9 minimum, maximum 2 lines, positioned away from the headline so the layout breathes. Must be clearly readable at a glance — if it feels small, go bigger.
-- Optional: vertical edge text rotated 90° — 1.5vw, opacity 0.75 minimum, full white or accent color
+- Body copy: 3vw minimum, opacity 0.9 minimum, maximum 2 lines. **ONE single block** immediately after the headline — do NOT split body text into two separate positioned elements.
+- NO vertical rotated edge text — omit it entirely.
 
 **Font rules:**
 - Always load the provided custom font via @font-face using the font URL from brand_context
@@ -164,6 +180,7 @@ For **banner** (canvas width > height × 5):
 - Body/labels may fall back to system sans-serif (system-ui, -apple-system, sans-serif) if the custom font feels wrong at small sizes
 - Never use Inter, Roboto, or Arial as the primary typeface
 ${logoSection}
+${productSection}
 ## PLATFORM-SPECIFIC LAYOUTS — FOLLOW EXACTLY FOR THE FORMAT IN brand_context
 
 **TALL STORY (9:16, height > width × 1.4):**
@@ -178,10 +195,11 @@ ${logoSection}
 **SQUARE (1:1, width ≈ height ±20%):**
 - Logo: top-left or top-right corner, height 40px, margin 40px
 - Overline: opposite top corner from logo, 3vw, uppercase, accent color
-- Headline: bottom-left anchor — headline bottom edge at ~78% canvas height. 13vw, 2–3 lines, flush-left, margin-left 5%
-- Body copy: 8px below headline, 3vw, white, 90% opacity, 1–2 lines
+- Headline: ONE element, bottom-left anchor — position it so the headline block (all lines together) ends at ~75% canvas height. 13vw, flush-left, margin-left 5%
+- Body copy: ONE element, 8px below the headline element, 3vw, white, 90% opacity, 1–2 lines, flush-left
 - Feature icons strip: bottom 10–12% of canvas, left-aligned, margin-left 5%
 - DO NOT use center alignment — flush-left always
+- DO NOT split headline or body into separate positioned divs
 
 **LANDSCAPE (16:9, width > height × 1.4):**
 - Text zone: left 45% of canvas width
@@ -295,6 +313,9 @@ export async function POST(req: NextRequest) {
     } catch { /* skip logo if unreadable */ }
   }
 
+  // Product is rendered by the AI image generation step — no separate HTML overlay needed
+  const productDataUri: string | null = null
+
   // Build copy instructions based on whether headline is provided or AI should generate it
   let copyInstructions: string
   if (headline) {
@@ -319,18 +340,22 @@ Font family: ${fontName}
 Font URL: url('__FONT_DATA_URI__') — literal placeholder, do NOT expand
 Background image: url('data:image/png;base64,__BG_IMAGE__') — literal placeholder, do NOT expand
 Logo: ${logoDataUri ? 'provided — use <img src="__LOGO_DATA_URI__"> as shown in the Logo section' : 'none'}
+Product image: ${productDataUri ? 'provided — use <img src="__PRODUCT_DATA_URI__"> as shown in the Product Image Compositing section' : 'none'}
 Icons (${trimmedIcons.length}):
 ${trimmedIcons.map((svg, i) => `Icon ${i + 1}:\n${svg}`).join('\n\n')}`
 
-  const systemPrompt = buildSystemPrompt(!!logoDataUri)
+  const systemPrompt = buildSystemPrompt(!!logoDataUri, !!productDataUri)
     .replace('{{BRAND_CONTEXT}}', brandContext)
     .replace('{{COPY_INSTRUCTIONS}}', copyInstructions)
 
+  console.time('[compose-html] claude-sonnet')
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 8000,
     messages: [{ role: 'user', content: systemPrompt }],
   })
+  console.timeEnd('[compose-html] claude-sonnet')
+  console.log(`[compose-html] input_tokens=${message.usage?.input_tokens} output_tokens=${message.usage?.output_tokens}`)
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : ''
 
@@ -353,10 +378,36 @@ ${trimmedIcons.map((svg, i) => `Icon ${i + 1}:\n${svg}`).join('\n\n')}`
     return NextResponse.json({ error: 'Claude did not return valid HTML', raw }, { status: 500 })
   }
 
+  const editScript = `<script>
+(function(){
+  var CLASSES=['headline','body-copy'];
+  CLASSES.forEach(function(cls){
+    var el=document.querySelector('.'+cls);
+    if(!el)return;
+    el.contentEditable='true';
+    el.style.outline='none';
+    el.style.cursor='text';
+    el.style.whiteSpace='pre-wrap';
+    el.style.overflow='visible';
+    el.style.textOverflow='clip';
+    el.style.minWidth='10px';
+    el.addEventListener('input',function(){
+      parent.postMessage({
+        type:'brand-studio-edit',
+        headline:(document.querySelector('.headline')||{}).innerText||'',
+        body:(document.querySelector('.body-copy')||{}).innerText||''
+      },'*');
+    });
+  });
+})();
+</script>`
+
   const html = stripped
     .replace(/__BG_IMAGE__/g, backgroundImageBase64)
     .replace(/__FONT_DATA_URI__/g, fontDataUri)
     .replace(/__LOGO_DATA_URI__/g, logoDataUri ?? '')
+    .replace(/__PRODUCT_DATA_URI__/g, productDataUri ?? '')
+    .replace('</body>', editScript + '\n</body>')
 
   return NextResponse.json({ html })
 }

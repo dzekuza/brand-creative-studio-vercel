@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import {
   Sidebar, SidebarContent, SidebarFooter,
   SidebarGroup, SidebarHeader, SidebarMenu,
@@ -8,6 +9,14 @@ import {
 import { NavGroup } from '@/components/nav-group'
 import { footerNavLinks, navGroups } from '@/components/app-shared'
 import { Sparkles, Settings2 } from 'lucide-react'
+
+function isBrandConfigured() {
+  if (typeof window === 'undefined') return false
+  return (
+    !!localStorage.getItem('brand-creative-studio:brand-bible') &&
+    !!localStorage.getItem('brand-creative-studio:assets')
+  )
+}
 
 function StudioMark({ className }: { className?: string }) {
   return (
@@ -18,6 +27,16 @@ function StudioMark({ className }: { className?: string }) {
 }
 
 export function AppSidebar() {
+  const router = useRouter()
+
+  function handleGenerate() {
+    if (isBrandConfigured()) {
+      router.push('/generate')
+    } else {
+      router.push('/setup?required=1')
+    }
+  }
+
   return (
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader className="h-14 justify-center">
@@ -39,7 +58,7 @@ export function AppSidebar() {
               className="min-w-8 text-white duration-200 ease-out hover:opacity-90 active:scale-[0.98] transition-all"
               style={{ background: 'var(--studio-accent)' }}
               tooltip="Generate creatives"
-              render={<a href="/generate" />}
+              onClick={handleGenerate}
             >
               <Sparkles className="size-4" />
               <span>Generate</span>

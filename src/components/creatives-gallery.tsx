@@ -48,7 +48,7 @@ export function CreativesGallery() {
           <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
             <ImageIcon className="size-10 opacity-30" />
             <p className="text-sm">Generated creatives will appear here</p>
-            <Button size="sm" variant="outline" render={<a href="/generate" />}>
+            <Button size="sm" variant="outline" nativeButton={false} render={<a href="/generate" />}>
               Generate now
             </Button>
           </div>

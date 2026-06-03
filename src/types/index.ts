@@ -46,15 +46,30 @@ export type GenerateRequest = {
   count: number
 }
 
+export type LayoutSketch = {
+  id: string
+  svgData: string
+  description: string
+}
+
 export type Creative = {
   id: string
   pngBase64: string
   platform: Platform
-  status: 'pending' | 'generating' | 'done' | 'error'
+  status: 'pending' | 'sketching' | 'sketch-review' | 'generating' | 'preview' | 'rendering' | 'done' | 'error'
   error?: string
+  // Populated when status === 'sketch-review'
+  sketches?: LayoutSketch[]
+  // Populated when status === 'preview'
+  previewHtml?: string
+  editableHeadline?: string
+  editableBody?: string
+  previewCompositorInput?: Omit<CompositorInput, 'headline' | 'body'>
 }
 
 export type ImageProvider = 'google' | 'gateway'
+
+export type ImageModel = 'gemini-2.5-flash' | 'gemini-3.1-flash' | 'imagen-4' | 'gpt-image-2'
 
 export type CompositorInput = {
   backgroundImageBase64: string
@@ -66,6 +81,7 @@ export type CompositorInput = {
   body: string
   platform: Platform
   logoUrl?: string
+  productImageUrl?: string
   adType?: AdType
   adContext?: string
 }

@@ -3,7 +3,7 @@ import { generateText } from 'ai'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { fetchBlobAsset } from '@/lib/fetch-blob'
-import type { BrandBible, ImageProvider, Platform } from '@/types'
+import type { BrandBible, ImageModel, ImageProvider, Platform } from '@/types'
 
 type GenerateImageRequest = {
   prompt: string
@@ -12,6 +12,10 @@ type GenerateImageRequest = {
   brandBible: BrandBible
   platform: Platform
   provider?: ImageProvider
+  model?: ImageModel
+  fullAiMode?: boolean
+  aiHeadline?: string
+  aiBody?: string
 }
 
 const SAFE_UPLOAD_RE = /^\/uploads\/[\w-]+\.(jpg|jpeg|png|webp|svg)$/i
@@ -60,33 +64,63 @@ export async function POST(req: NextRequest) {
     `TYPOGRAPHY MOOD: ${typography.weight === 'bold' || Number(typography.weight) >= 700 ? 'strong, confident' : 'clean, refined'}.`,
     `LOGO ZONE: leave clear negative space at the ${layout.logoPosition} corner (~80×80px).`,
     compositionGuide,
-    `LIGHTING: cinematic studio or lifestyle lighting, atmospheric, shallow depth-of-field. Strong contrast between product and background.`,
-    `ABSOLUTE NO: NO text, NO captions, NO watermarks, NO logos, NO UI overlays. Image must be completely clean — text and icons are composited separately.`,
+    `LIGHTING: cinematic studio or lifestyle lighting, atmospheric, shallow depth-of-field, with light and shadows matching the product placement.`,
+    `PRODUCT PLACEMENT: The product image provided MUST appear naturally in the scene — placed in the composition zone described above, fully visible, sharp, and hero-sized. The product must look like it physically belongs in the environment: match the scene lighting onto the product, add a subtle ground shadow or surface reflection beneath it. Do NOT alter the product's label, colors, or packaging design.`,
+    ...(body.fullAiMode ? [
+      `FULL AD RENDER — include all typography and graphic elements directly in the image:`,
+      `HEADLINE: "${body.aiHeadline || body.brandBible.tagline || ''}" — render in massive bold type (weight 900), flush-left, brand text color ${colors.text}, occupying the left or lower-left zone of the canvas. Line-height very tight (0.9). One word or phrase may be in accent color ${colors.accent}.`,
+      `BODY COPY: "${body.aiBody || body.brandBible.tone}" — render smaller, clean white text, directly below the headline, max 2 lines.`,
+      `BOTTOM ICON STRIP: render 3–4 small circular badges at the bottom of the canvas, each with a minimal white line-art icon and a 2-word white uppercase label below it. Represent product benefits (e.g. energy, natural, premium, protection).`,
+      `BRAND MARK ZONE: leave clear space at the ${layout.logoPosition} corner for the brand logo (approx 120×40px area).`,
+    ] : [
+      `ABSOLUTE NO: NO text, NO captions, NO watermarks, NO logos, NO UI overlays.`,
+    ]),
     `STYLE: photorealistic, editorial quality, premium ${platformLabel} ad campaign.`,
   ].join(' ')
 
-  const productImg = await urlToBase64(body.productImageUrl)
+  console.time('[generate-image] load-images')
   const styleImgs = await Promise.all(
     body.styleRefUrls.slice(0, 3).map(url => urlToBase64(url))
   )
 
-  const useGoogle = body.provider === 'google' ||
-    (!body.provider && process.env.IMAGE_PROVIDER === 'google')
+  let productImg: { data: string; mimeType: string } | null = null
+  if (body.productImageUrl) {
+    try { productImg = await urlToBase64(body.productImageUrl) } catch { /* skip if unreadable */ }
+  }
+  console.timeEnd('[generate-image] load-images')
+  console.log(`[generate-image] styleRefs=${styleImgs.length} hasProduct=${!!productImg}`)
+
+  // model field takes precedence; fall back to legacy provider field
+  const resolvedModel: ImageModel = body.model
+    ?? (body.provider === 'google' ? 'gemini-2.5-flash'
+      : body.provider === 'gateway' ? 'gemini-3.1-flash'
+      : process.env.IMAGE_PROVIDER === 'google' ? 'gemini-2.5-flash'
+      : 'gemini-3.1-flash')
+
+  const useGoogle = resolvedModel === 'gemini-2.5-flash'
+  const useImagen = resolvedModel === 'imagen-4'
+  const useOpenAI = resolvedModel === 'gpt-image-2'
 
   if (useGoogle) {
     const { GoogleGenAI } = await import('@google/genai')
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
     const parts = [
+      ...(productImg ? [
+        { text: `PRODUCT REFERENCE — this is the exact product to place in the scene. Keep its label, colors, and packaging exactly as shown. Match the scene lighting onto it:` },
+        { inlineData: { mimeType: productImg.mimeType, data: productImg.data } },
+      ] : []),
       { text: `${body.prompt}. ${stylePrompt}` },
-      { inlineData: { mimeType: productImg.mimeType, data: productImg.data } },
+      ...(styleImgs.length > 0 ? [{ text: `MOOD / STYLE REFERENCES — use these for lighting, atmosphere, and color palette:` }] : []),
       ...styleImgs.map(s => ({ inlineData: { mimeType: s.mimeType, data: s.data } })),
     ]
 
+    console.time('[generate-image] gemini-2.5-flash-image')
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: [{ role: 'user', parts }],
     })
+    console.timeEnd('[generate-image] gemini-2.5-flash-image')
 
     const imagePart = response.candidates?.[0]?.content?.parts?.find(
       (p: { inlineData?: { data?: string } }) => p.inlineData
@@ -97,19 +131,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ imageBase64: imagePart.inlineData.data })
   }
 
-  // Vercel AI Gateway (default)
+  // Imagen 4 via AI Gateway (text-to-image, no multimodal input)
+  if (useImagen) {
+    const { experimental_generateImage: generateImage } = await import('ai')
+    const { images } = await generateImage({
+      model: 'google/imagen-4.0-generate-001' as never,
+      prompt: `${body.prompt}. ${stylePrompt}`,
+    })
+    if (!images?.[0]?.base64) {
+      return NextResponse.json({ error: 'No image returned from Imagen 4' }, { status: 500 })
+    }
+    return NextResponse.json({ imageBase64: images[0].base64 })
+  }
+
+  // GPT Image 2 via Vercel AI Gateway (no OPENAI_API_KEY needed)
+  if (useOpenAI) {
+    const { experimental_generateImage: generateImage } = await import('ai')
+    console.time('[generate-image] gpt-image-2')
+    const { images } = await generateImage({
+      model: 'openai/gpt-image-2' as never,
+      prompt: `${body.prompt}. ${stylePrompt}`,
+      size: `${body.platform.width}x${body.platform.height}` as never,
+      providerOptions: {
+        gateway: {
+          tags: ['feature:image-generation', 'app:brand-creative-studio'],
+        },
+      },
+    } as never)
+    console.timeEnd('[generate-image] gpt-image-2')
+    if (!images?.[0]?.base64) {
+      return NextResponse.json({ error: 'No image returned from GPT Image 2' }, { status: 500 })
+    }
+    return NextResponse.json({ imageBase64: images[0].base64 })
+  }
+
+  // Vercel AI Gateway — Gemini 3.1 Flash (default)
+  console.time('[generate-image] gateway-gemini-3.1-flash')
   const result = await generateText({
     model: 'google/gemini-3.1-flash-image-preview',
     messages: [
       {
         role: 'user',
         content: [
-          { type: 'text', text: `${body.prompt}. ${stylePrompt}` },
-          {
-            type: 'image',
-            image: Buffer.from(productImg.data, 'base64'),
-            mimeType: productImg.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-          },
+          ...(productImg ? [
+            { type: 'text' as const, text: `PRODUCT REFERENCE — this is the exact product to place in the scene. Keep its label, colors, and packaging exactly as shown. Match the scene lighting onto it:` },
+            { type: 'image' as const, image: Buffer.from(productImg.data, 'base64'), mimeType: productImg.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' },
+          ] : []),
+          { type: 'text' as const, text: `${body.prompt}. ${stylePrompt}` },
+          ...(styleImgs.length > 0 ? [{ type: 'text' as const, text: `MOOD / STYLE REFERENCES — use these for lighting, atmosphere, and color palette:` }] : []),
           ...styleImgs.map(s => ({
             type: 'image' as const,
             image: Buffer.from(s.data, 'base64'),
@@ -124,6 +193,8 @@ export async function POST(req: NextRequest) {
       },
     },
   })
+
+  console.timeEnd('[generate-image] gateway-gemini-3.1-flash')
 
   const imageFile = result.files?.find(f => f.mediaType?.startsWith('image/'))
   if (!imageFile?.base64) {

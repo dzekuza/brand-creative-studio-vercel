@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 type Props = {
   label: string
@@ -18,7 +18,7 @@ function filenameFromUrl(url: string): string {
 }
 
 export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10, onUploaded, initialUrls }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputId = useId()
   const showPreviews = IMAGE_ACCEPT.some(t => accept.includes(t))
 
   const [uploading, setUploading] = useState(false)
@@ -29,6 +29,13 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
     initialUrls?.length ? initialUrls.map(filenameFromUrl) : []
   )
   const [error, setError] = useState<string>()
+
+  // Sync when parent loads persisted URLs after hydration
+  useEffect(() => {
+    if (!initialUrls?.length) return
+    if (showPreviews) setPreviewUrls(initialUrls)
+    setUploaded(initialUrls.map(filenameFromUrl))
+  }, [initialUrls?.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleFiles(files: FileList) {
     const list = Array.from(files).slice(0, maxFiles)
@@ -59,9 +66,9 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
   const hasPreview = showPreviews && previewUrls.length > 0
 
   return (
-    <div
-      className="border-2 border-dashed border-border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors"
-      onClick={() => inputRef.current?.click()}
+    <label
+      htmlFor={inputId}
+      className="block border-2 border-dashed border-border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors"
       onDragOver={e => e.preventDefault()}
       onDrop={e => {
         e.preventDefault()
@@ -69,7 +76,7 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
       }}
     >
       <input
-        ref={inputRef}
+        id={inputId}
         type="file"
         accept={accept}
         multiple={multiple}
@@ -80,15 +87,15 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
       {hasPreview ? (
         <div className="relative">
           {previewUrls.length === 1 ? (
-            <img src={previewUrls[0]} alt="Preview" className="w-full h-40 object-cover" />
+            <img src={previewUrls[0]} alt="Preview" className="w-full h-40 object-cover pointer-events-none" />
           ) : (
-            <div className="grid grid-cols-3 gap-0.5 bg-border">
+            <div className="grid grid-cols-3 gap-0.5 bg-border pointer-events-none">
               {previewUrls.map((url, i) => (
                 <img key={i} src={url} alt={`Preview ${i + 1}`} className="w-full h-24 object-cover bg-muted" />
               ))}
             </div>
           )}
-          <div className="absolute bottom-0 inset-x-0 bg-black/40 px-3 py-1.5 flex items-center justify-between">
+          <div className="absolute bottom-0 inset-x-0 bg-black/40 px-3 py-1.5 flex items-center justify-between pointer-events-none">
             <span className="text-xs text-white font-medium truncate">
               {uploaded.length === 1 ? uploaded[0] : `${uploaded.length} files`}
             </span>
@@ -119,6 +126,6 @@ export function FileUploadZone({ label, accept, multiple = false, maxFiles = 10,
           <p className="text-xs text-destructive">{error}</p>
         </div>
       )}
-    </div>
+    </label>
   )
 }

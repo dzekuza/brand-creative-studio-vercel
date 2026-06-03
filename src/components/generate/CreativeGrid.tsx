@@ -4,9 +4,14 @@ import { Button } from '@/components/ui/button'
 import { CreativeCard } from './CreativeCard'
 import type { Creative } from '@/types'
 
-type Props = { creatives: Creative[] }
+type Props = {
+  creatives: Creative[]
+  onApprove: (id: string) => void
+  onRecompose: (id: string, headline: string, body: string) => Promise<void>
+  onApproveSketch: (id: string, sketchIds: string[]) => void
+}
 
-export function CreativeGrid({ creatives }: Props) {
+export function CreativeGrid({ creatives, onApprove, onRecompose, onApproveSketch }: Props) {
   async function downloadAll() {
     const { default: JSZip } = await import('jszip')
     const zip = new JSZip()
@@ -35,7 +40,15 @@ export function CreativeGrid({ creatives }: Props) {
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {creatives.map(c => <CreativeCard key={c.id} creative={c} />)}
+        {creatives.map(c => (
+          <CreativeCard
+            key={c.id}
+            creative={c}
+            onApprove={onApprove}
+            onRecompose={onRecompose}
+            onApproveSketch={onApproveSketch}
+          />
+        ))}
       </div>
     </div>
   )
