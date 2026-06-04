@@ -25,8 +25,8 @@ User fills in product info and uploads files (product image, style reference ima
 
 **Phase 2 — Creative Generation (`/generate`)**
 `GenerateForm` orchestrates three sequential API calls per creative:
-1. `/api/generate-image` — sends product image + up to 3 style refs + prompt to Gemini (`gemini-2.5-flash-image`) as multimodal input; returns base64 PNG
-2. `buildCreativeHtml()` (`src/lib/html-compositor.ts`) — assembles an HTML document: Gemini image as background, custom font via `@font-face`, SVG icons injected, text overlaid using brand bible colors/typography
+1. `/api/generate-image` — sends product image + up to 3 style refs + prompt to an image model as multimodal input; returns base64 PNG. Default model is `google/gemini-3.1-flash-image-preview` via the Vercel AI Gateway. Alternates (selectable via the request `model` field): `gemini-2.5-flash` (direct Google GenAI), `imagen-4` (gateway text-to-image), `gpt-image-2` (OpenAI). For full-AI renders (`fullAiMode`, text baked into the image) the route auto-routes to `gpt-image-2` when no model is chosen and `OPENAI_API_KEY` is set, since it has the best text fidelity; otherwise it stays on Gemini.
+2. `buildCreativeHtml()` (`src/lib/html-compositor.ts`) — assembles an HTML document: generated image as background, custom font via `@font-face`, SVG icons injected, text overlaid using brand bible colors/typography. The AI-authored variant (`/api/compose-html`) uses `claude-sonnet-4-6` with a large static art-director system prompt sent as a cached (`cache_control: ephemeral`) `system` block — keep that prompt byte-identical so creatives in a session reuse the cached prefix; per-request brand context and copy go in the user message.
 3. `/api/render` — Puppeteer loads that HTML at exact platform dimensions, screenshots it, returns base64 PNG
 
 Results are shown in `CreativeGrid` with per-card download and "Download All as ZIP" (jszip, dynamically imported).
@@ -49,10 +49,17 @@ Uploaded files go to `public/uploads/<uuid>.<ext>` (gitignored). The upload rout
 ## Env vars
 
 ```
-ANTHROPIC_API_KEY=   # Claude API
-GEMINI_API_KEY=      # Google GenAI
+ANTHROPIC_API_KEY=   # Claude API (all text routes use claude-sonnet-4-6)
+GEMINI_API_KEY=      # Google GenAI (gemini-2.5-flash direct path)
+OPENAI_API_KEY=      # OpenAI (gpt-image-2; also enables full-AI-mode auto-routing)
 ```
+
+The default Gemini 3.1 path and Imagen 4 go through the Vercel AI Gateway (no per-provider key needed beyond gateway auth).
+
+Ad-type copy strategy (AIDA/PAS/BAB framing per ad type) has a single source of truth in `src/lib/ad-frameworks.ts` — `imageCopyHint`, `htmlCopyGuidance`, and `bulkFramework` are consumed by generate-image, compose-html, and generate-copy respectively. Don't reintroduce per-route copies.
+
+Text-route temperatures: structured/JSON-extraction routes (brand-bible, scrape-products, review-image, generate-sketches) run at `temperature: 0`; creative-copy routes (generate-copy, and compose-html's copy-generating branch) run hot (~0.9).
 
 ## Tests
 
-Unit tests cover `src/lib/` utilities only (platforms, html-compositor, brand-bible). Jest runs in Node environment with `ts-jest`. Tests for client-only code (color-extract) are omitted since it requires a browser canvas. API routes are not unit tested.
+Unit tests cover `src/lib/` utilities only (platforms, html-compositor, brand-bible, ad-frameworks). Jest runs in Node environment with `ts-jest`. Tests for client-only code (color-extract) are omitted since it requires a browser canvas. API routes are not unit tested.

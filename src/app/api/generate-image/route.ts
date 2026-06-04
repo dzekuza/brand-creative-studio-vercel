@@ -3,6 +3,7 @@ import { generateText } from 'ai'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { fetchBlobAsset } from '@/lib/fetch-blob'
+import { imageCopyHint } from '@/lib/ad-frameworks'
 import type { BrandBible, ImageModel, ImageProvider, Platform } from '@/types'
 
 type GenerateImageRequest = {
@@ -22,13 +23,6 @@ type GenerateImageRequest = {
 
 const SAFE_UPLOAD_RE = /^\/uploads\/[\w-]+\.(jpg|jpeg|png|webp|svg)$/i
 
-const AD_TYPE_COPY_HINTS: Record<string, string> = {
-  'brand-awareness': 'emotionally resonant, aspirational copy — 3–6 word headline, no hard sell',
-  'sales': 'offer-first, urgency-driven — lead with price/discount hook, include a clear CTA',
-  'product-launch': 'excitement and novelty — "Introducing…" framing, highlight the key differentiator',
-  'engagement': 'community-first, question-led — relatable, invite participation or a share',
-  'custom': 'match the campaign context provided above',
-}
 const MIME_MAP: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
 }
@@ -68,21 +62,30 @@ export async function POST(req: NextRequest) {
       ? `COMPOSITION FOR LEADERBOARD BANNER (${width}×${height}px, very wide strip): Product on the right 35% of the image. Left 65% must be a clean, slightly darker gradient area for text overlay. Tight horizontal composition, no bottom strip needed.`
       : `COMPOSITION FOR LANDSCAPE (${width}×${height}px): Product on the right half or center-right, occupying 40–50% of the frame. Left third is clean atmospheric zone (slightly darker) for text overlay. Product fully visible, sharp, well-lit.`
   
+    // Camera/lens choice: clean studio look when style refs imply e-commerce,
+    // otherwise a hero/lifestyle portrait lens with shallow depth of field.
+    const hasStyleRefs = (body.styleRefUrls?.length ?? 0) > 0
+    const cameraBlock = hasStyleRefs
+      ? `CAMERA: shot on a 50mm prime lens at f/8 for edge-to-edge product sharpness; full-frame sensor, true-to-life color.`
+      : `CAMERA: shot on an 85mm prime lens at f/2.8 for a shallow depth of field that isolates the product; full-frame sensor, crisp focus on the product, soft falloff behind it.`
+
     const stylePrompt = [
-      `FORMAT: ${platformLabel} (${width}×${height}px).`,
+      `Premium ${platformLabel} advertising photograph (${width}×${height}px), photorealistic, editorial campaign quality.`,
       `BRAND TONE: ${body.brandBible.tone}.`,
-      `COLOR PALETTE: dominant background color ${colors.background}, primary accent ${colors.primary}, secondary accent ${colors.accent}.`,
+      `COLOR PALETTE & GRADE: ground the scene in ${colors.background}; let ${colors.primary} and ${colors.accent} read as accent tones in props, surface, or light. Cohesive color grade, no clashing hues.`,
       `TYPOGRAPHY MOOD: ${typography.weight === 'bold' || Number(typography.weight) >= 700 ? 'strong, confident' : 'clean, refined'}.`,
       `LOGO ZONE: leave clear negative space at the ${layout.logoPosition} corner (~80×80px).`,
       compositionGuide,
-      `LIGHTING: cinematic studio or lifestyle lighting, atmospheric, shallow depth-of-field, with light and shadows matching the product placement.`,
+      cameraBlock,
+      `LIGHTING: three-point studio lighting — a large softbox key from the upper-right, a white fill card on the left to open the shadows, and a subtle rim/hair light to separate the product edges from the background. Controlled specular highlights on glossy surfaces, a soft natural contact shadow beneath the product, atmospheric depth.`,
+      `SURFACE & MATERIALS: place the product on a tactile, on-brand surface (e.g. honed stone, brushed metal, matte studio sweep, or natural wood as fits the tone); render realistic material reflections and micro-texture.`,
       `PRODUCT PLACEMENT: The product image provided MUST appear naturally in the scene — placed in the composition zone described above, fully visible, sharp, and hero-sized. The product must look like it physically belongs in the environment: match the scene lighting onto the product, add a subtle ground shadow or surface reflection beneath it. Do NOT alter the product's label, colors, or packaging design.`,
       ...(body.fullAiMode ? [
         `FULL AD RENDER — include all typography and graphic elements directly in the image:`,
         ...(body.adType && !body.aiHeadline ? [
-          `COPY STRATEGY: This is a "${body.adType}" ad${body.adContext ? ` for: ${body.adContext}` : ''}. ${AD_TYPE_COPY_HINTS[body.adType] ?? ''}. Generate a headline and body copy that match this intent — do NOT use the tagline.`,
+          `COPY STRATEGY: This is a "${body.adType}" ad${body.adContext ? ` for: ${body.adContext}` : ''}. ${imageCopyHint(body.adType)}. Generate a headline and body copy that match this intent — do NOT use the tagline. Render all text crisply with correct spelling.`,
         ] : [
-          `HEADLINE: "${body.aiHeadline || body.brandBible.tagline || ''}" — render in massive bold type (weight 900), flush-left, brand text color ${colors.text}, occupying the left or lower-left zone of the canvas. Line-height very tight (0.9). One word or phrase may be in accent color ${colors.accent}.`,
+          `HEADLINE: "${body.aiHeadline || body.brandBible.tagline || ''}" — render in massive bold type (weight 900), flush-left, brand text color ${colors.text}, occupying the left or lower-left zone of the canvas. Line-height very tight (0.9). One word or phrase may be in accent color ${colors.accent}. Render text crisply with correct spelling.`,
           `BODY COPY: "${body.aiBody || body.brandBible.tone}" — render smaller, clean white text, directly below the headline, max 2 lines.`,
         ]),
         `BOTTOM ICON STRIP: render 3–4 small circular badges at the bottom of the canvas, each with a minimal white line-art icon and a 2-word white uppercase label below it. Represent product benefits (e.g. energy, natural, premium, protection).`,
@@ -90,7 +93,6 @@ export async function POST(req: NextRequest) {
       ] : [
         `ABSOLUTE NO: NO text, NO captions, NO watermarks, NO logos, NO UI overlays.`,
       ]),
-      `STYLE: photorealistic, editorial quality, premium ${platformLabel} ad campaign.`,
     ].join(' ')
   
     console.time('[generate-image] load-images')
@@ -107,11 +109,15 @@ export async function POST(req: NextRequest) {
     console.timeEnd('[generate-image] load-images')
     console.log(`[generate-image] styleRefs=${styleImgs.length} hasProduct=${!!productImg}`)
   
-    // model field takes precedence; fall back to legacy provider field
+    // model field takes precedence; fall back to legacy provider field.
+    // For full-AI renders (text baked into the image) GPT Image 2 has the best
+    // text fidelity — route to it when the user hasn't picked a model and an
+    // OpenAI key is configured, otherwise keep the Gemini default chain.
     const resolvedModel: ImageModel = body.model
       ?? (body.provider === 'google' ? 'gemini-2.5-flash'
         : body.provider === 'gateway' ? 'gemini-3.1-flash'
         : process.env.IMAGE_PROVIDER === 'google' ? 'gemini-2.5-flash'
+        : (body.fullAiMode && process.env.OPENAI_API_KEY) ? 'gpt-image-2'
         : 'gemini-3.1-flash')
   
     const useGoogle = resolvedModel === 'gemini-2.5-flash'

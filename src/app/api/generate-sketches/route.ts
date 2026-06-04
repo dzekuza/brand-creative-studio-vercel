@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 3000,
+    temperature: 0,
     system: `You are a creative director generating layout wireframe concepts for ad creatives.
 Return ONLY valid JSON — an array of exactly 3 objects. No markdown, no explanation, no code fences.
 Each object: { "description": string, "svgData": string }
