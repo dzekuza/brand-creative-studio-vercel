@@ -209,8 +209,8 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
         const compositorInput = {
           backgroundImageBase64: imageBase64,
           brandBible,
-          fontUrl: assets.fontUrl,
-          fontName: assets.fontName,
+          fontUrls: assets.fontUrls ?? [],
+          fontNames: assets.fontNames ?? [],
           iconSvgs,
           platform,
           logoUrl: assets.logoUrl,

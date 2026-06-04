@@ -31,8 +31,8 @@ export type BrandBible = {
 export type UploadedAssets = {
   productImageUrls: string[]
   styleRefUrls: string[]
-  fontUrl: string
-  fontName: string
+  fontUrls: string[]
+  fontNames: string[]
   iconUrls: string[]
   logoUrl?: string
 }
@@ -74,8 +74,8 @@ export type ImageModel = 'gemini-2.5-flash' | 'gemini-3.1-flash' | 'imagen-4' | 
 export type CompositorInput = {
   backgroundImageBase64: string
   brandBible: BrandBible
-  fontUrl: string
-  fontName: string
+  fontUrls: string[]
+  fontNames: string[]
   iconSvgs: string[]
   headline: string
   body: string

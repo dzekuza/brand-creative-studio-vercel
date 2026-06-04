@@ -150,7 +150,7 @@ export function ProductForm({ onComplete }: Props) {
           brandName,
           about: about || undefined,
           url: url || undefined,
-          fontName: currentAssets.fontName ?? (webFonts[0] || 'BrandFont'),
+          fontName: currentAssets.fontNames?.[0] ?? (webFonts[0] || 'BrandFont'),
           webFonts,
           iconNames: (currentAssets.iconUrls ?? []).map((_, i) => `icon-${i}`),
           colorPalette,
@@ -330,13 +330,19 @@ export function ProductForm({ onComplete }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Brand Font * <span className="text-muted-foreground text-xs">(.ttf / .otf / .woff2)</span></Label>
+            <Label>Brand Fonts <span className="text-muted-foreground text-xs">(.ttf / .otf / .woff2 — up to 3)</span></Label>
             <FileUploadZone
-              label="Upload font file"
+              label="Upload font files"
               accept=".ttf,.otf,.woff,.woff2"
-              initialUrls={assets.fontUrl ? [assets.fontUrl] : undefined}
-              onUploaded={([u], [name]) =>
-                setAssets(a => ({ ...a, fontUrl: u, fontName: name.replace(/\.[^.]+$/, '') }))
+              multiple
+              maxFiles={3}
+              initialUrls={assets.fontUrls?.length ? assets.fontUrls : undefined}
+              onUploaded={(urls, names) =>
+                setAssets(a => ({
+                  ...a,
+                  fontUrls: urls,
+                  fontNames: names.map(n => n.replace(/\.[^.]+$/, '')),
+                }))
               }
             />
           </div>

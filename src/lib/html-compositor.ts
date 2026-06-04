@@ -35,7 +35,11 @@ function getLayoutVariant(width: number, height: number): LayoutVariant {
 }
 
 export function buildCreativeHtml(input: CompositorInput): string {
-  const { backgroundImageBase64, brandBible, fontUrl, fontName, iconSvgs, headline, body, platform } = input
+  const { backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform } = input
+  const fontUrl = fontUrls[0] ?? ''
+  const fontName = fontNames[0] ?? 'BrandFont'
+  const bodyFontUrl = fontUrls[1] ?? fontUrl
+  const bodyFontName = fontNames[1] ?? fontName
   const { colors, typography, layout } = brandBible
 
   const variant = getLayoutVariant(platform.width, platform.height)
@@ -74,7 +78,7 @@ export function buildCreativeHtml(input: CompositorInput): string {
 
   // Banner layout is special — single horizontal row
   if (variant === 'banner') {
-    return buildBannerHtml({ backgroundImageBase64, brandBible, fontUrl, fontName, iconSvgs, headline, body, platform })
+    return buildBannerHtml({ backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform })
   }
 
   // Copy block layout: for story use asymmetric left-flush large type
@@ -91,17 +95,15 @@ export function buildCreativeHtml(input: CompositorInput): string {
 <head>
 <meta charset="utf-8">
 <style>
-  @font-face {
-    font-family: '${fontName}';
-    src: url('${fontUrl}');
-  }
+  @font-face { font-family:'${fontName}'; src:url('${fontUrl}'); }
+  ${bodyFontName !== fontName ? `@font-face { font-family:'${bodyFontName}'; src:url('${bodyFontUrl}'); }` : ''}
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
     width:${platform.width}px;
     height:${platform.height}px;
     overflow:hidden;
     position:relative;
-    font-family:'${fontName}', 'Helvetica Neue', Arial, sans-serif;
+    font-family:'${bodyFontName}', 'Helvetica Neue', Arial, sans-serif;
     background:${colors.background};
   }
   .bg {
@@ -159,6 +161,7 @@ export function buildCreativeHtml(input: CompositorInput): string {
     line-height:1;
   }
   .headline {
+    font-family:'${fontName}','Helvetica Neue',Arial,sans-serif;
     font-size:${typography.headingSize};
     font-weight:${typography.weight};
     letter-spacing:${typography.letterSpacing};
@@ -168,6 +171,7 @@ export function buildCreativeHtml(input: CompositorInput): string {
     text-shadow: 0 2px 24px rgba(${bgRgb},0.55);
   }
   .body-copy {
+    font-family:'${bodyFontName}','Helvetica Neue',Arial,sans-serif;
     font-size:${typography.bodySize};
     color:rgba(${textRgb},0.78);
     line-height:1.45;
@@ -203,7 +207,11 @@ export function buildCreativeHtml(input: CompositorInput): string {
 }
 
 function buildBannerHtml(input: CompositorInput): string {
-  const { backgroundImageBase64, brandBible, fontUrl, fontName, iconSvgs, headline, body, platform } = input
+  const { backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform } = input
+  const fontUrl = fontUrls[0] ?? ''
+  const fontName = fontNames[0] ?? 'BrandFont'
+  const bodyFontUrl = fontUrls[1] ?? fontUrl
+  const bodyFontName = fontNames[1] ?? fontName
   const { colors, typography } = brandBible
   const bgRgb = hexToRgb(colors.background)
   const textRgb = hexToRgb(colors.text)
@@ -220,6 +228,7 @@ function buildBannerHtml(input: CompositorInput): string {
 <meta charset="utf-8">
 <style>
   @font-face { font-family:'${fontName}'; src:url('${fontUrl}'); }
+  ${bodyFontName !== fontName ? `@font-face { font-family:'${bodyFontName}'; src:url('${bodyFontUrl}'); }` : ''}
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
     width:${platform.width}px;
@@ -227,7 +236,7 @@ function buildBannerHtml(input: CompositorInput): string {
     overflow:hidden;
     display:flex;
     align-items:center;
-    font-family:'${fontName}','Helvetica Neue',Arial,sans-serif;
+    font-family:'${bodyFontName}','Helvetica Neue',Arial,sans-serif;
     background:${colors.background};
     position:relative;
   }
@@ -265,6 +274,7 @@ function buildBannerHtml(input: CompositorInput): string {
     flex:1;
   }
   .headline {
+    font-family:'${fontName}','Helvetica Neue',Arial,sans-serif;
     font-size:${headingPx}px;
     font-weight:${typography.weight};
     letter-spacing:${typography.letterSpacing};
@@ -275,6 +285,7 @@ function buildBannerHtml(input: CompositorInput): string {
     text-overflow:ellipsis;
   }
   .body-copy {
+    font-family:'${bodyFontName}','Helvetica Neue',Arial,sans-serif;
     font-size:${bodyPx}px;
     color:rgba(${textRgb},0.72);
     line-height:1.3;

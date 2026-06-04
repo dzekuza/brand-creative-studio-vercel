@@ -260,7 +260,7 @@ Build a prominent feature badge row at the **bottom of the canvas** (positioned 
 **Required structure:**
 1. Start with \`<!DOCTYPE html>\` and end with \`</html>\`
 2. Set body width and height to the exact platform dimensions from brand_context
-3. Load custom font via @font-face — use \`url('__FONT_DATA_URI__')\` literally as the src value. Do NOT expand this placeholder.
+3. Load heading font via @font-face using \`url('__FONT_DATA_URI__')\` and body font via \`url('__BODY_FONT_DATA_URI__')\` — use these literals exactly. Apply heading font to headings, body font to body text.
 4. Use \`url('data:image/png;base64,__BG_IMAGE__')\` literally in the background-image CSS — never expand this placeholder
 5. All text and icons: use absolute positioning
 6. body: set \`overflow: hidden\` and \`margin: 0\`
@@ -291,7 +291,7 @@ function truncateSvg(svg: string, maxChars = 600): string {
 
 export async function POST(req: NextRequest) {
   const input: CompositorInput = await req.json()
-  const { backgroundImageBase64, brandBible, fontUrl, fontName, iconSvgs, headline, body, platform, logoUrl, adType, adContext } = input
+  const { backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform, logoUrl, adType, adContext } = input
   const { colors, typography, layout } = brandBible
 
   const aspectRatio = platform.width / platform.height
@@ -301,10 +301,15 @@ export async function POST(req: NextRequest) {
 
   const trimmedIcons = iconSvgs.filter(Boolean).slice(0, 6).map(truncateSvg)
 
-  let fontDataUri = fontUrl
-  try {
-    fontDataUri = await uploadsFileToDataUri(fontUrl, ALLOWED_FONT_EXTS, FONT_MIME)
-  } catch { /* fall back to original URL */ }
+  const fontDataUris = await Promise.all(
+    (fontUrls ?? []).map(async url => {
+      try { return await uploadsFileToDataUri(url, ALLOWED_FONT_EXTS, FONT_MIME) } catch { return url }
+    })
+  )
+  const fontDataUri = fontDataUris[0] ?? ''
+  const fontName = fontNames?.[0] ?? 'BrandFont'
+  const bodyFontDataUri = fontDataUris[1] ?? fontDataUri
+  const bodyFontName = fontNames?.[1] ?? fontName
 
   let logoDataUri: string | null = null
   if (logoUrl) {
@@ -340,8 +345,8 @@ Colors: primary=${colors.primary}, secondary=${colors.secondary}, accent=${color
 Typography: headingSize=${typography.headingSize}, bodySize=${typography.bodySize}, weight=${typography.weight}, letterSpacing=${typography.letterSpacing}
 Layout: padding=${layout.padding}, logoPosition=${layout.logoPosition}
 Brand rules: ${brandBible.rules.slice(0, 2).join('; ')}
-Font family: ${fontName}
-Font URL: url('__FONT_DATA_URI__') — literal placeholder, do NOT expand
+Heading font: ${fontName} | Body font: ${bodyFontName}
+Font URLs: heading=url('__FONT_DATA_URI__'), body=url('__BODY_FONT_DATA_URI__') — literal placeholders, do NOT expand
 Background image: url('data:image/png;base64,__BG_IMAGE__') — literal placeholder, do NOT expand
 Logo: ${logoDataUri ? 'provided — use <img src="__LOGO_DATA_URI__"> as shown in the Logo section' : 'none'}
 Product image: ${productDataUri ? 'provided — use <img src="__PRODUCT_DATA_URI__"> as shown in the Product Image Compositing section' : 'none'}
@@ -409,6 +414,7 @@ ${trimmedIcons.map((svg, i) => `Icon ${i + 1}:\n${svg}`).join('\n\n')}`
   const html = stripped
     .replace(/__BG_IMAGE__/g, backgroundImageBase64)
     .replace(/__FONT_DATA_URI__/g, fontDataUri)
+    .replace(/__BODY_FONT_DATA_URI__/g, bodyFontDataUri)
     .replace(/__LOGO_DATA_URI__/g, logoDataUri ?? '')
     .replace(/__PRODUCT_DATA_URI__/g, productDataUri ?? '')
     .replace('</body>', editScript + '\n</body>')
