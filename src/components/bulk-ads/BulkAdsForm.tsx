@@ -176,7 +176,7 @@ function CopyCard({ copy, assets, brandBible, imageModel, canvasId, scrapedProdu
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const effectiveProductImageUrl = copy.productImageUrl ?? assets?.productImageUrl
+  const effectiveProductImageUrl = copy.productImageUrl ?? assets?.productImageUrls?.[0]
   const canvasPlatform = PLATFORMS.find(p => p.id === canvasId) ?? PLATFORMS[0]
 
   async function generateImage() {
@@ -476,7 +476,7 @@ export function BulkAdsForm() {
               aiHeadline: copy.headline,
               aiBody: copy.body,
               adType: copy.adType,
-              productImageUrl: copy.productImageUrl ?? assets?.productImageUrl,
+              productImageUrl: copy.productImageUrl ?? assets?.productImageUrls?.[0],
               styleRefUrls: assets?.styleRefUrls ?? [],
             }),
           })

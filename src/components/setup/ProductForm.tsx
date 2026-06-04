@@ -308,12 +308,14 @@ export function ProductForm({ onComplete }: Props) {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Product Image *</Label>
+            <Label>Product Images <span className="text-muted-foreground text-xs">(up to 10)</span></Label>
             <FileUploadZone
-              label="Upload product image"
+              label="Upload product images"
               accept="image/jpeg,image/png,image/webp"
-              initialUrls={assets.productImageUrl ? [assets.productImageUrl] : undefined}
-              onUploaded={([u]) => setAssets(a => ({ ...a, productImageUrl: u }))}
+              multiple
+              maxFiles={10}
+              initialUrls={assets.productImageUrls?.length ? assets.productImageUrls : undefined}
+              onUploaded={urls => setAssets(a => ({ ...a, productImageUrls: urls }))}
             />
           </div>
           <div className="space-y-1.5">

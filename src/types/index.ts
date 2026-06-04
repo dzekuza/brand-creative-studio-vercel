@@ -29,7 +29,7 @@ export type BrandBible = {
 }
 
 export type UploadedAssets = {
-  productImageUrl: string
+  productImageUrls: string[]
   styleRefUrls: string[]
   fontUrl: string
   fontName: string

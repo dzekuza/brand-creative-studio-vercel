@@ -52,6 +52,7 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
   const [error, setError] = useState<string>()
   const [scrapedProducts, setScrapedProducts] = useState<ScrapedProduct[]>([])
   const [selectedProductId, setSelectedProductId] = useState<string>('')
+  const [selectedProductImageUrl, setSelectedProductImageUrl] = useState<string>('')
 
   // Ref mirror so approval/recompose callbacks see latest creatives without stale closure
   const creativesRef = useRef<Creative[]>([])
@@ -132,7 +133,9 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
   }, [])
 
   const selectedProduct = scrapedProducts.find(p => p.id === selectedProductId) ?? null
-  const effectiveProductImageUrl = selectedProduct?.imageUrl ?? assets.productImageUrl
+  const effectiveProductImageUrl =
+    selectedProduct?.imageUrl ??
+    (selectedProductImageUrl || (assets.productImageUrls?.[0] ?? ''))
 
   function handleProductSelect(id: string) {
     setSelectedProductId(id)
@@ -271,6 +274,45 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
 
   return (
     <div className="space-y-6">
+
+      {/* Product image picker — uploaded images from brand assets */}
+      {(assets.productImageUrls?.length ?? 0) > 0 && !selectedProductId && (
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold">Product Image</Label>
+          <div className="flex flex-wrap gap-2">
+            {assets.productImageUrls!.map(url => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => setSelectedProductImageUrl(prev => prev === url ? '' : url)}
+                className={`relative size-16 rounded-lg overflow-hidden border-2 transition-all ${
+                  selectedProductImageUrl === url
+                    ? 'border-primary ring-2 ring-primary/30'
+                    : 'border-border hover:border-muted-foreground'
+                }`}
+              >
+                <img src={url} alt="Product" className="w-full h-full object-cover" />
+                {selectedProductImageUrl === url && (
+                  <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                    <svg className="size-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+          {selectedProductImageUrl && (
+            <button
+              type="button"
+              onClick={() => setSelectedProductImageUrl('')}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Product selector */}
       {scrapedProducts.length > 0 && (
