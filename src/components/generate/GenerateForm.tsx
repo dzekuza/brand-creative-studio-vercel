@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PLATFORMS } from '@/lib/platforms'
 import { v4 as uuidv4 } from 'uuid'
 import { saveCreatives, loadRestoreSession, clearRestoreSession, type SessionConfig } from '@/lib/creative-history'
+import { loadSetup } from '@/lib/saved-setup'
 import type { AdType, BrandBible, Creative, ImageModel, ScrapedProduct, UploadedAssets } from '@/types'
 
 const PRODUCTS_KEY = 'brand-creative-studio:scraped-products'
@@ -49,6 +50,7 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onGenerate
   const [headline, setHeadline] = useState('')
   const [body, setBody] = useState('')
   const [count, setCount] = useState(3)
+  const [includeIcons, setIncludeIcons] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string>()
   const [scrapedProducts, setScrapedProducts] = useState<ScrapedProduct[]>([])
@@ -170,6 +172,7 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onGenerate
     onGenerateStart?.()
     setGenerating(true)
 
+    const category = loadSetup()?.category
     const platform = PLATFORMS.find(p => p.id === platformId)!
     const ids = Array.from({ length: count }, () => uuidv4())
 
@@ -202,6 +205,8 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onGenerate
           aiBody: renderMode === 'ai' && !aiWillGenerateCopy ? (body || '') : undefined,
           adType: renderMode === 'ai' && adType ? adType : undefined,
           adContext: renderMode === 'ai' && adType ? (adContext || undefined) : undefined,
+          category,
+          includeIcons,
         }),
       })
       if (!imgRes.ok) throw new Error(await imgRes.text())
@@ -263,6 +268,8 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onGenerate
           productImageUrl: effectiveProductImageUrl,
           adType: adType || undefined,
           adContext: adContext || undefined,
+          category,
+          includeIcons,
         }
 
         const composeRes = await fetch('/api/compose-html', {
@@ -514,6 +521,33 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onGenerate
         {IMAGE_MODELS.find(m => m.id === imageModel)?.note && (
           <p className="text-[11px] text-muted-foreground">{IMAGE_MODELS.find(m => m.id === imageModel)?.note}</p>
         )}
+      </div>
+
+      <div className="h-px bg-border/50" />
+
+      {/* Feature icons toggle */}
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold">Feature Icons</Label>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={includeIcons}
+            onClick={() => setIncludeIcons(v => !v)}
+            className={`relative h-6 w-10 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              includeIcons ? 'bg-primary' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-background shadow-sm transition-transform ${
+                includeIcons ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+          <span className="text-[11px] text-muted-foreground leading-relaxed">
+            Add a benefit/feature icon row to the ad. Off by default — labels are derived from your product, not generic.
+          </span>
+        </div>
       </div>
 
       <div className="h-px bg-border/50" />

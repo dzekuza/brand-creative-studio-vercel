@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import chromium from '@sparticuz/chromium'
 import puppeteer from 'puppeteer-core'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 
 // Allow up to 60s — rendering 1080px canvases with embedded fonts takes time
 export const maxDuration = 60
@@ -33,8 +35,90 @@ function validateBase64(s: string, label: string): void {
   }
 }
 
-// RFC1918, loopback, and link-local ranges that Puppeteer must never reach
-const BLOCKED_URL_RE = /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|::1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)(:\d+)?(\/|$)/i
+// --- SSRF guard ---------------------------------------------------------
+// A regex on the URL string is not enough: it misses decimal/hex/octal IP
+// encodings (http://2130706433 = 127.0.0.1), hostnames that *resolve* to
+// internal IPs (DNS rebinding → cloud metadata at 169.254.169.254), and
+// redirect chains. We therefore (1) reject IP literals, (2) require the host
+// to be on an allowlist (the Vercel Blob CDN — the only host the app ever
+// fetches a logo from — mirroring src/lib/fetch-blob.ts), and (3) resolve the
+// host and reject if any address falls in a restricted range.
+const ALLOWED_LOGO_HOST_SUFFIX = '.public.blob.vercel-storage.com'
+
+function envAllowedHosts(): string[] {
+  return (process.env.RENDER_LOGO_HOST_ALLOWLIST || '')
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+}
+
+function ipv4Forbidden(ip: string): boolean {
+  const o = ip.split('.').map(Number)
+  if (o.length !== 4 || o.some(n => Number.isNaN(n) || n < 0 || n > 255)) return true
+  const [a, b] = o
+  if (a === 0) return true                          // 0.0.0.0/8
+  if (a === 10) return true                         // 10.0.0.0/8 (private)
+  if (a === 127) return true                        // 127.0.0.0/8 (loopback)
+  if (a === 169 && b === 254) return true           // 169.254.0.0/16 (link-local incl. metadata)
+  if (a === 172 && b >= 16 && b <= 31) return true  // 172.16.0.0/12 (private)
+  if (a === 192 && b === 168) return true           // 192.168.0.0/16 (private)
+  if (a === 100 && b >= 64 && b <= 127) return true // 100.64.0.0/10 (CGNAT)
+  return false
+}
+
+function ipv6Forbidden(ip: string): boolean {
+  const s = ip.toLowerCase().split('%')[0] // strip zone id
+  if (s === '::1' || s === '::') return true              // loopback / unspecified
+  const mapped = s.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/) // ::ffff:127.0.0.1 etc.
+  if (mapped) return ipv4Forbidden(mapped[1])
+  if (/^f[cd]/.test(s)) return true                       // fc00::/7 (ULA)
+  if (/^fe[89ab]/.test(s)) return true                    // fe80::/10 (link-local)
+  return false
+}
+
+function ipForbidden(ip: string): boolean {
+  const t = isIP(ip)
+  if (t === 4) return ipv4Forbidden(ip)
+  if (t === 6) return ipv6Forbidden(ip)
+  return true // not a parseable IP — fail closed
+}
+
+function hostAllowed(host: string, extra: string[]): boolean {
+  const h = host.toLowerCase()
+  if (h.endsWith(ALLOWED_LOGO_HOST_SUFFIX)) return true
+  const all = [...extra, ...envAllowedHosts()]
+  return all.some(a => a !== '' && (h === a || h.endsWith('.' + a)))
+}
+
+// Authoritative SSRF check, run on every request hop (covers redirects).
+// `extraHosts` adds the app's own request host so self-hosted deployments that
+// serve /uploads from their own origin work — the DNS check below still rejects
+// a spoofed Host header that points at an internal target.
+async function isSafeRenderUrl(rawUrl: string, extraHosts: string[]): Promise<boolean> {
+  let u: URL
+  try { u = new URL(rawUrl) } catch { return false }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false
+
+  const host = u.hostname // IPv6 brackets already stripped by URL
+
+  // Dev only: the local dev server serves its own /uploads over loopback.
+  if (process.env.NODE_ENV !== 'production' &&
+      (host === 'localhost' || host === '127.0.0.1' || host === '::1')) {
+    return true
+  }
+
+  // Reject IP literals (incl. IPv6) — the CDN is always reached by hostname.
+  if (isIP(host) !== 0) return false
+  // Reject non-dotted IP encodings (decimal / hex) that DNS would coerce.
+  if (/^(0x[0-9a-f]+|\d+)$/i.test(host)) return false
+  // Must be on the allowlist.
+  if (!hostAllowed(host, extraHosts)) return false
+  // Defense in depth: resolve and reject if any address is internal.
+  try {
+    const addrs = await lookup(host, { all: true })
+    return addrs.length > 0 && addrs.every(a => !ipForbidden(a.address))
+  } catch {
+    return false // fail closed on resolution failure
+  }
+}
 
 function buildLogoOverlayHtml(
   imageBase64: string,
@@ -94,9 +178,18 @@ export async function POST(req: NextRequest) {
   const body: RenderRequest = await req.json()
   const { width, height } = body
 
+  // The app's own host is allowlisted for logo fetches (self-hosted /uploads).
+  const selfHost = (req.headers.get('host') || '').toLowerCase().split(':')[0]
+  const extraHosts = selfHost ? [selfHost] : []
+
   let html: string
   if (body.logoOverlay) {
     const { imageBase64, logoUrl, logoPosition } = body.logoOverlay
+    // Reject a blocked remote logo host up front (absolute http(s) URLs only;
+    // relative /uploads paths are handled by buildLogoOverlayHtml).
+    if (/^https?:\/\//i.test(logoUrl) && !(await isSafeRenderUrl(logoUrl, extraHosts))) {
+      return NextResponse.json({ error: 'logo URL rejected (blocked host)' }, { status: 400 })
+    }
     try {
       html = buildLogoOverlayHtml(imageBase64, logoUrl, logoPosition, width, height)
     } catch (e) {
@@ -122,20 +215,27 @@ export async function POST(req: NextRequest) {
 
     const page = await browser.newPage()
 
-    // Block SSRF targets — Puppeteer must never reach internal network addresses
+    // Block SSRF targets — Puppeteer must never reach internal network addresses.
+    // This runs for every request, including each redirect hop, so a public URL
+    // that 3xx-redirects to an internal one is re-validated and aborted.
     await page.setRequestInterception(true)
-    page.on('request', req => {
-      const url = req.url()
-      // Allow data: URIs (base64 images in the HTML) and about:blank
-      if (url.startsWith('data:') || url.startsWith('about:')) { req.continue(); return }
-      if (BLOCKED_URL_RE.test(url)) { req.abort('blockedbyclient'); return }
-      // Block all external network requests — the rendered HTML is self-contained
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        // Allow the logo URL we explicitly validated
-        req.continue()
-        return
+    page.on('request', async req => {
+      try {
+        const url = req.url()
+        // Allow inline content only.
+        if (url.startsWith('data:') || url.startsWith('about:') || url.startsWith('blob:')) {
+          await req.continue(); return
+        }
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          if (await isSafeRenderUrl(url, extraHosts)) await req.continue()
+          else await req.abort('blockedbyclient')
+          return
+        }
+        // Block everything else (file:, ftp:, ws:, chrome:, …).
+        await req.abort('blockedbyclient')
+      } catch {
+        try { await req.abort('failed') } catch { /* already handled */ }
       }
-      req.continue()
     })
 
     await page.setViewport({ width, height, deviceScaleFactor: 1 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { bulkFramework } from '@/lib/ad-frameworks'
 import type { BrandBible, BulkAdConfig, BulkAdCopy, AdType } from '@/types'
 
 type GenerateCopyRequest = {
@@ -13,14 +14,6 @@ const PLATFORM_RULES: Record<string, string> = {
   google: 'Google Ads: headlines max 30 chars each (provide 3), descriptions max 90 chars each (provide 2)',
   linkedin: 'LinkedIn: headline max 70 chars, introductory text max 150 chars recommended, description max 100 chars',
   tiktok: 'TikTok: ad text max 100 chars, headline max 40 chars, energetic and trend-aware tone',
-}
-
-const AD_TYPE_FRAMEWORK: Record<AdType, string> = {
-  'brand-awareness': 'Use AIDA framework — emotionally resonant, aspirational. 3–6 word headline, build desire, no hard sell.',
-  'sales': 'Use PAS framework — lead with pain point, agitate, offer solution. Include urgency/offer hook. Clear CTA.',
-  'product-launch': 'Use AIDA — excitement and novelty. "Introducing…" framing. Highlight key differentiator. Build anticipation.',
-  'engagement': 'Community-first, question-led. Relatable, invite participation. End with a question or call to share.',
-  'custom': 'Match the brand tone exactly. Use PAS or AIDA as best fits the copy context.',
 }
 
 function buildSystemPrompt(config: BulkAdConfig, brandBible: BrandBible): string {
@@ -47,10 +40,13 @@ PLATFORM RULES (enforce strictly):
 ${platformRules}
 
 AD COPYWRITING FRAMEWORKS:
-${adTypes.map(t => `- ${t}: ${AD_TYPE_FRAMEWORK[t]}`).join('\n')}
+${adTypes.map(t => `- ${t}: ${bulkFramework(t).rule}`).join('\n')}
+
+Pick the framework that matches the audience's awareness level: AIDA for unaware/aspirational audiences, PAS for problem-aware audiences, BAB (before–after–bridge) for solution-aware audiences.
 
 OUTPUT REQUIREMENTS:
 - Return ONLY a valid JSON array, no markdown fences, no explanation
+- Before returning, verify every field is within its platform's character limit (see PLATFORM RULES); rewrite any field that is over the limit until it fits
 - Spread copies across these platforms evenly: ${config.platforms.join(', ')}
 - Vary the adType across copies (use: brand-awareness, sales, product-launch, engagement)
 - Each object must have: id (string), platform (one of: ${config.platforms.join(', ')}), adType, headline, body, cta, descriptions (string array)
@@ -81,6 +77,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
+      temperature: 0.9,
       system: buildSystemPrompt(config, brandBible),
       messages: [
         {

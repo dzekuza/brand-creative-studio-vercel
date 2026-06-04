@@ -3,6 +3,8 @@ import { readFile, realpath } from 'fs/promises'
 import { join, sep } from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { fetchBlobAsset } from '@/lib/fetch-blob'
+import { htmlCopyGuidance } from '@/lib/ad-frameworks'
+import { adReferenceGuidance } from '@/lib/ad-references'
 import type { CompositorInput } from '@/types'
 
 const FONT_MIME: Record<string, string> = {
@@ -50,56 +52,13 @@ async function uploadsFileToDataUri(url: string, allowedExts: Set<string>, mimeM
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
-const AD_TYPE_COPY_GUIDANCE: Record<string, string> = {
-  'brand-awareness': 'Write emotionally resonant, aspirational copy. Headline: short, poetic, evocative (3–6 words). Body: brand feeling, not features. No hard sell. Tone: warm, confident, human.',
-  'sales':           'Write offer-first, conversion-focused copy. Headline: lead with the benefit or discount (e.g. "50% OFF", "Limited Drop"). Body: urgency + clear value proposition. Include a short CTA phrase (e.g. "Shop Now", "Get Yours").',
-  'product-launch':  'Write excitement-building copy. Headline: announcement framing ("Introducing", "Meet", "Now Available"). Body: 1 key differentiator + novelty hook. Tone: energetic, confident.',
-  'engagement':      'Write community-first, relatable copy. Headline: question, challenge, or bold opinion. Body: invite participation or reaction. Tone: conversational, fun, authentic.',
-  'custom':          'Write copy exactly matching the campaign context provided. Use the tone, angle, and messaging described.',
-}
+// Fully static art-direction document. Kept byte-identical across requests so
+// it can be sent as a cached `system` block (see POST below). All per-request
+// data — brand context, copy instructions, whether a logo/product is present —
+// is supplied in the user message instead.
+const SYSTEM_PROMPT = `You are a senior art director at a top creative agency specializing in bold editorial advertising. Your task is to produce a single complete HTML document that will be used for Puppeteer screenshotting. The HTML must overlay typography and icons onto a background scene at exact pixel dimensions.
 
-function buildSystemPrompt(hasLogo: boolean, hasProduct: boolean): string {
-  const logoSection = hasLogo ? `
-## LOGO PLACEMENT
-
-A brand logo is provided. Place it using this exact img tag — do NOT expand or replace the placeholder:
-  <img src="__LOGO_DATA_URI__" alt="logo" style="...">
-
-- Position at the logoPosition corner from brand_context (e.g. top-left → top: 60px; left: 60px)
-- Keep it small: height 40–60px, width auto, preserving aspect ratio
-- Never stretch, filter, or recolor the logo
-- Use \`object-fit: contain\` if using CSS sizing
-` : `
-## LOGO
-
-No logo provided. Do not add any logo placeholder or logo element to the HTML.
-`
-
-  const productSection = hasProduct ? `
-## PRODUCT IMAGE COMPOSITING
-
-A product image is provided. Place it using this EXACT img tag — do NOT expand or replace the placeholder:
-  <img src="__PRODUCT_DATA_URI__" alt="product" style="...">
-
-Position rules by format:
-- **Tall story (9:16)**: center-upper zone — width: 52%; top: 8%; left: 50%; transform: translateX(-50%); object-fit: contain; max-height: 58%
-- **Square (1:1)**: right-center zone — width: 48%; top: 50%; right: 4%; transform: translateY(-50%); object-fit: contain; max-height: 60%
-- **Landscape (16:9)**: right half — width: 44%; top: 50%; right: 3%; transform: translateY(-50%); object-fit: contain; max-height: 80%
-- **Banner**: right zone — width: 22%; top: 50%; right: 2%; transform: translateY(-50%); object-fit: contain; max-height: 90%
-
-Always use: position: absolute; filter: drop-shadow(0 12px 40px rgba(0,0,0,0.55)); pointer-events: none;
-` : `
-## PRODUCT IMAGE
-No product image provided. Do not add any product placeholder.
-`
-
-  return `You are a senior art director at a top creative agency specializing in bold editorial advertising. Your task is to produce a single complete HTML document that will be used for Puppeteer screenshotting. The HTML must overlay typography and icons onto a background scene at exact pixel dimensions.
-
-You will be provided with complete brand context including canvas dimensions, brand colors, typography specifications, copy, and assets:
-
-<brand_context>
-{{BRAND_CONTEXT}}
-</brand_context>
+You will be provided, in the user message, with complete brand context (canvas dimensions, brand colors, typography specifications, copy, and assets) inside <brand_context> tags, plus copy instructions. Whether a logo and/or product image is provided is stated in the brand context.
 
 ## CRITICAL BACKGROUND IMAGE RULE
 
@@ -121,7 +80,7 @@ The product photograph is the entire point of this creative. Never bury it.
 
 ## AD COPY GENERATION
 
-{{COPY_INSTRUCTIONS}}
+Follow the "AD COPY" instructions given in the user message to produce the headline and body text. Respect any platform character feel — headlines short and punchy, body at most 2 lines.
 
 ## TYPOGRAPHY STYLE — EDITORIAL POSTER
 
@@ -179,8 +138,38 @@ For **banner** (canvas width > height × 5):
 - Use the custom font for the headline
 - Body/labels may fall back to system sans-serif (system-ui, -apple-system, sans-serif) if the custom font feels wrong at small sizes
 - Never use Inter, Roboto, or Arial as the primary typeface
-${logoSection}
-${productSection}
+
+## LOGO PLACEMENT
+
+The brand context states whether a logo is provided ("Logo: provided" or "Logo: none").
+
+If a logo IS provided, place it using this exact img tag — do NOT expand or replace the placeholder:
+  <img src="__LOGO_DATA_URI__" alt="logo" style="...">
+
+- Position at the logoPosition corner from brand_context (e.g. top-left → top: 60px; left: 60px)
+- Keep it small: height 40–60px, width auto, preserving aspect ratio
+- Never stretch, filter, or recolor the logo
+- Use \`object-fit: contain\` if using CSS sizing
+
+If NO logo is provided, do not add any logo placeholder or logo element to the HTML.
+
+## PRODUCT IMAGE COMPOSITING
+
+The brand context states whether a product image is provided ("Product image: provided" or "Product image: none").
+
+If a product image IS provided, place it using this EXACT img tag — do NOT expand or replace the placeholder:
+  <img src="__PRODUCT_DATA_URI__" alt="product" style="...">
+
+Position rules by format:
+- **Tall story (9:16)**: center-upper zone — width: 52%; top: 8%; left: 50%; transform: translateX(-50%); object-fit: contain; max-height: 58%
+- **Square (1:1)**: right-center zone — width: 48%; top: 50%; right: 4%; transform: translateY(-50%); object-fit: contain; max-height: 60%
+- **Landscape (16:9)**: right half — width: 44%; top: 50%; right: 3%; transform: translateY(-50%); object-fit: contain; max-height: 80%
+- **Banner**: right zone — width: 22%; top: 50%; right: 2%; transform: translateY(-50%); object-fit: contain; max-height: 90%
+
+Always use: position: absolute; filter: drop-shadow(0 12px 40px rgba(0,0,0,0.55)); pointer-events: none;
+
+If NO product image is provided, do not add any product placeholder.
+
 ## PLATFORM-SPECIFIC LAYOUTS — FOLLOW EXACTLY FOR THE FORMAT IN brand_context
 
 **TALL STORY (9:16, height > width × 1.4):**
@@ -217,7 +206,9 @@ ${productSection}
 
 ## ICON PLACEMENT — FEATURE STRIP
 
-Build a prominent feature badge row at the **bottom of the canvas** (positioned 32–48px from the bottom edge), sitting inside the dark bottom strip of the background image.
+**GATE:** Build the feature/icon strip ONLY if the brand context says "Feature icons: enabled". If it says "Feature icons: disabled", do NOT add any icon strip, badges, or icon row at all — and never invent icons. When disabled, skip this entire section.
+
+When enabled, build a prominent feature badge row at the **bottom of the canvas** (positioned 32–48px from the bottom edge), sitting inside the dark bottom strip of the background image.
 
 **Layout:**
 - Horizontal flex row, left-aligned with 32–40px gap between badges
@@ -240,10 +231,10 @@ Build a prominent feature badge row at the **bottom of the canvas** (positioned 
 
 **If icons are provided (count > 0):**
 - Use the provided SVGs — scale them to 40px inside the circle
-- Infer a 1–2 word label from each icon or from the brand tone
+- Infer a 1–2 word label from each icon, derived from the real product/campaign
 
-**If no icons are provided:**
-- Generate 3–4 minimal inline SVGs (line-art, 24×24 viewBox, single white stroke, stroke-width 1.5, no fill) representing product benefits — e.g. a lightning bolt for energy, a leaf for natural, a shield for protection, a star for premium
+**If enabled but no icons are provided:**
+- Generate 3–4 minimal inline SVGs (line-art, 24×24 viewBox, single white stroke, stroke-width 1.5, no fill) for THIS product's real benefits, with product-specific labels — never generic filler like "premium", "eco-friendly", or "protection"
 - Apply same badge layout above
 
 **VISIBILITY REQUIREMENT:** The feature strip must be clearly readable at a glance. If the background is dark, use full white (not tinted). Never use opacity below 0.85 on the labels.
@@ -280,7 +271,6 @@ Think through:
 </scratchpad>
 
 Now write the complete HTML document inside <html_output> tags. Remember: raw HTML only, starting with <!DOCTYPE html>.`
-}
 
 function truncateSvg(svg: string, maxChars = 600): string {
   if (svg.length <= maxChars) return svg
@@ -291,7 +281,7 @@ function truncateSvg(svg: string, maxChars = 600): string {
 
 export async function POST(req: NextRequest) {
   const input: CompositorInput = await req.json()
-  const { backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform, logoUrl, adType, adContext } = input
+  const { backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform, logoUrl, adType, adContext, category, includeIcons } = input
   const { colors, typography, layout } = brandBible
 
   const aspectRatio = platform.width / platform.height
@@ -330,7 +320,7 @@ export async function POST(req: NextRequest) {
   if (headline) {
     copyInstructions = `The headline has been provided by the user — use it exactly as given: "${headline}"\nBody copy: ${body || '(none — use brand tone)'}`
   } else if (adType) {
-    const guidance = AD_TYPE_COPY_GUIDANCE[adType] ?? AD_TYPE_COPY_GUIDANCE['custom']
+    const guidance = htmlCopyGuidance(adType)
     copyInstructions = `No headline was provided. You MUST generate all copy (headline, body, overline, CTA if applicable) based on the following:\n\nAd Type: ${adType}\nCopy Strategy: ${guidance}\nCampaign Context: ${adContext || '(none — infer from brand bible and tone)'}\n\nGenerate copy that fits this ad type and feels native to the brand.`
   } else {
     copyInstructions = `Use the tagline as headline: "${brandBible.tagline ?? 'leave blank'}". Body: ${body || brandBible.tone}`
@@ -345,6 +335,8 @@ Colors: primary=${colors.primary}, secondary=${colors.secondary}, accent=${color
 Typography: headingSize=${typography.headingSize}, bodySize=${typography.bodySize}, weight=${typography.weight}, letterSpacing=${typography.letterSpacing}
 Layout: padding=${layout.padding}, logoPosition=${layout.logoPosition}
 Brand rules: ${brandBible.rules.slice(0, 2).join('; ')}
+Feature icons: ${includeIcons ? 'enabled' : 'disabled'}
+Reference design guidance: ${adReferenceGuidance(category, true)}
 Heading font: ${fontName} | Body font: ${bodyFontName}
 Font URLs: heading=url('__FONT_DATA_URI__'), body=url('__BODY_FONT_DATA_URI__') — literal placeholders, do NOT expand
 Background image: url('data:image/png;base64,__BG_IMAGE__') — literal placeholder, do NOT expand
@@ -353,18 +345,29 @@ Product image: ${productDataUri ? 'provided — use <img src="__PRODUCT_DATA_URI
 Icons (${trimmedIcons.length}):
 ${trimmedIcons.map((svg, i) => `Icon ${i + 1}:\n${svg}`).join('\n\n')}`
 
-  const systemPrompt = buildSystemPrompt(!!logoDataUri, !!productDataUri)
-    .replace('{{BRAND_CONTEXT}}', brandContext)
-    .replace('{{COPY_INSTRUCTIONS}}', copyInstructions)
+  // The static art-direction document goes in a cached `system` block; the
+  // per-request brand context and copy instructions go in the user message.
+  // This keeps the large prefix byte-identical across creatives in a session,
+  // so the 2nd+ request reads it from cache instead of reprocessing it.
+  const userMessage = `<brand_context>
+${brandContext}
+</brand_context>
+
+## AD COPY
+${copyInstructions}
+
+Now write the complete HTML document inside <html_output> tags. Raw HTML only, starting with <!DOCTYPE html>.`
 
   console.time('[compose-html] claude-sonnet')
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 8000,
-    messages: [{ role: 'user', content: systemPrompt }],
+    temperature: adType && !headline ? 0.9 : 0.4,
+    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: userMessage }],
   })
   console.timeEnd('[compose-html] claude-sonnet')
-  console.log(`[compose-html] input_tokens=${message.usage?.input_tokens} output_tokens=${message.usage?.output_tokens}`)
+  console.log(`[compose-html] input_tokens=${message.usage?.input_tokens} cache_read=${message.usage?.cache_read_input_tokens} cache_write=${message.usage?.cache_creation_input_tokens} output_tokens=${message.usage?.output_tokens}`)
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : ''
 
