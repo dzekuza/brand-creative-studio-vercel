@@ -204,6 +204,8 @@ export function ProductForm({ onComplete }: Props) {
   }
 
   const [importing, setImporting] = useState(false)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [uploadingProductId, setUploadingProductId] = useState<string | null>(null)
 
   async function importSelected() {
     const toImport = scraped.filter(p => selected.has(p.id))
@@ -241,6 +243,22 @@ export function ProductForm({ onComplete }: Props) {
     const updated = importedProducts.filter(p => p.id !== id)
     setImportedProducts(updated)
     saveImportedProducts(updated)
+  }
+
+  async function replaceProductImage(productId: string, file: File) {
+    setUploadingProductId(productId)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error(await res.text())
+      const { url } = await res.json() as { url: string }
+      const updated = importedProducts.map(p => p.id === productId ? { ...p, imageUrl: url } : p)
+      setImportedProducts(updated)
+      saveImportedProducts(updated)
+    } finally {
+      setUploadingProductId(null)
+    }
   }
 
   return (
@@ -289,6 +307,15 @@ export function ProductForm({ onComplete }: Props) {
           <p className="text-sm text-muted-foreground mt-0.5">Upload files used in every creative.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Product Image *</Label>
+            <FileUploadZone
+              label="Upload product image"
+              accept="image/jpeg,image/png,image/webp"
+              initialUrls={assets.productImageUrl ? [assets.productImageUrl] : undefined}
+              onUploaded={([u]) => setAssets(a => ({ ...a, productImageUrl: u }))}
+            />
+          </div>
           <div className="space-y-1.5">
             <Label>Style References <span className="text-muted-foreground text-xs">(up to 5 — mood board)</span></Label>
             <FileUploadZone
@@ -418,8 +445,18 @@ export function ProductForm({ onComplete }: Props) {
             <div className="grid gap-3 sm:grid-cols-2">
               {importedProducts.map(product => (
                 <div key={product.id} className="rounded-lg border border-border overflow-hidden">
-                  {/* Product image */}
-                  <div className="relative bg-muted aspect-video flex items-center justify-center">
+                  {/* Product image — drag-and-drop or click to replace */}
+                  <div
+                    className={`relative bg-muted aspect-video flex items-center justify-center transition-colors ${dragOverId === product.id ? 'bg-primary/10 ring-2 ring-primary ring-inset' : ''}`}
+                    onDragOver={e => { e.preventDefault(); setDragOverId(product.id) }}
+                    onDragLeave={() => setDragOverId(null)}
+                    onDrop={e => {
+                      e.preventDefault()
+                      setDragOverId(null)
+                      const file = e.dataTransfer.files[0]
+                      if (file?.type.startsWith('image/')) replaceProductImage(product.id, file)
+                    }}
+                  >
                     {product.imageUrl ? (
                       <img
                         src={product.imageUrl}
@@ -436,6 +473,22 @@ export function ProductForm({ onComplete }: Props) {
                       <svg className="size-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
                       <span className="text-[10px]">No image</span>
                     </div>
+                    {/* Hover overlay — click or drop to replace */}
+                    <label className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer bg-black/40 group">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0]
+                          if (file) replaceProductImage(product.id, file)
+                          e.target.value = ''
+                        }}
+                      />
+                      <span className="text-[11px] text-white font-medium px-2 text-center leading-tight">
+                        {uploadingProductId === product.id ? 'Uploading…' : 'Drop or click\nto replace'}
+                      </span>
+                    </label>
                     <Button
                       size="sm"
                       variant="ghost"
