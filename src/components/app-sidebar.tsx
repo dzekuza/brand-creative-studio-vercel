@@ -40,7 +40,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader className="h-14 justify-center">
-        <SidebarMenuButton render={<a href="/dashboard" />} className="gap-2.5">
+        <SidebarMenuButton render={<a href="/dashboard" />} nativeButton={false} className="gap-2.5">
           <div
             className="size-5 rounded-md flex items-center justify-center shrink-0 bg-[var(--studio-accent)]"
           >
@@ -86,6 +86,7 @@ export function AppSidebar() {
                 isActive={item.isActive}
                 size="sm"
                 render={<a href={item.path} />}
+                nativeButton={false}
               >
                 {item.icon}
                 <span>{item.title}</span>

@@ -172,24 +172,49 @@ export async function POST(req: NextRequest) {
         : '1536x1024' as const
   
       console.time('[generate-image] gpt-image-2')
-      let imageBase64: string
+      let imageBase64 = ''
       if (productImg) {
-        const productFile = await toFile(
-          Buffer.from(productImg.data, 'base64'),
-          'product.png',
-          { type: productImg.mimeType }
-        )
-        const response = await openai.images.edit({
-          model: 'gpt-image-2',
-          image: productFile,
-          prompt: fullPrompt,
-          size: gptSize,
-          n: 1,
-        })
-        if (!response.data?.[0]?.b64_json) {
-          return NextResponse.json({ error: 'No image returned from GPT Image 2' }, { status: 500 })
+        let editSucceeded = false
+        try {
+          const productFile = await toFile(
+            Buffer.from(productImg.data, 'base64'),
+            'product.png',
+            { type: productImg.mimeType }
+          )
+          const response = await openai.images.edit({
+            model: 'gpt-image-2',
+            image: productFile,
+            prompt: fullPrompt,
+            size: gptSize,
+            n: 1,
+          })
+          if (response.data?.[0]?.b64_json) {
+            imageBase64 = response.data[0].b64_json
+            editSucceeded = true
+          }
+        } catch (editErr: unknown) {
+          const status = (editErr as { status?: number }).status
+          if (status !== 401 && status !== 403) throw editErr
+          console.warn('[generate-image] images.edit not authorized for this key — falling back to images.generate')
         }
-        imageBase64 = response.data[0].b64_json
+        if (!editSucceeded) {
+          // Fall back to generate: images.generate doesn't accept image input so we
+          // remove the misleading PRODUCT PLACEMENT instruction and inject a description note.
+          const fallbackPrompt = fullPrompt
+            .replace(/PRODUCT PLACEMENT:[^.]+\./g, '')
+            .replace(/ABSOLUTE NO:[^.]+\./, '')
+            + ' Feature the product prominently in the scene, styled to match the brand palette and platform composition.'
+          const generateRes = await openai.images.generate({
+            model: 'gpt-image-2',
+            prompt: fallbackPrompt,
+            size: gptSize,
+            n: 1,
+          })
+          if (!generateRes.data?.[0]?.b64_json) {
+            return NextResponse.json({ error: 'No image returned from GPT Image 2' }, { status: 500 })
+          }
+          imageBase64 = generateRes.data[0].b64_json
+        }
       } else {
         const response = await openai.images.generate({
           model: 'gpt-image-2',

@@ -11,8 +11,26 @@ import { BrandBiblePreview } from './BrandBiblePreview'
 import { saveBrandBible, loadBrandBible } from '@/lib/brand-bible'
 import { saveSetup, loadSetup } from '@/lib/saved-setup'
 import { extractColors } from '@/lib/color-extract'
-import type { BrandBible, ScrapedProduct, UploadedAssets } from '@/types'
+import type { BrandBible, BrandCategory, ScrapedProduct, UploadedAssets } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  Package, Smartphone, Settings, ShoppingBag, Briefcase, Sparkles, UtensilsCrossed,
+} from 'lucide-react'
+
+const BRAND_CATEGORIES: {
+  id: BrandCategory
+  label: string
+  description: string
+  icon: React.ElementType
+}[] = [
+  { id: 'physical-product', label: 'Physical Product',  description: 'Goods shipped to customers',       icon: Package },
+  { id: 'mobile-app',       label: 'Mobile App',        description: 'iOS / Android application',        icon: Smartphone },
+  { id: 'ecommerce',        label: 'E-commerce',        description: 'Online store or marketplace',      icon: ShoppingBag },
+  { id: 'saas',             label: 'SaaS / Software',   description: 'Web platform or subscription',     icon: Settings },
+  { id: 'service',          label: 'Service',           description: 'Agency, consulting, freelance',    icon: Briefcase },
+  { id: 'beauty-wellness',  label: 'Beauty & Wellness', description: 'Skincare, health, supplements',    icon: Sparkles },
+  { id: 'food-beverage',    label: 'Food & Beverage',   description: 'Food products or restaurants',     icon: UtensilsCrossed },
+]
 
 const PRODUCTS_KEY = 'brand-creative-studio:scraped-products'
 
@@ -34,6 +52,7 @@ function saveImportedProducts(products: ScrapedProduct[]): void {
 type Props = { onComplete: (bible: BrandBible, assets: UploadedAssets) => void }
 
 export function ProductForm({ onComplete }: Props) {
+  const [category, setCategory]   = useState<BrandCategory | null>(null)
   const [brandName, setBrandName] = useState('')
   const [about, setAbout]         = useState('')
   const [url, setUrl]             = useState('')
@@ -60,6 +79,7 @@ export function ProductForm({ onComplete }: Props) {
       setUrl(saved.url ?? '')
       setAssets(saved.assets)
       setScrapeUrl(saved.url ?? '')
+      if (saved.category) setCategory(saved.category)
     }
     setBible(loadBrandBible())
     setImportedProducts(loadImportedProducts())
@@ -68,8 +88,8 @@ export function ProductForm({ onComplete }: Props) {
 
   useEffect(() => {
     if (!loaded) return
-    saveSetup({ brandName, about, url, assets })
-  }, [brandName, about, url, assets, loaded])
+    saveSetup({ brandName, about, url, assets, category: category ?? undefined })
+  }, [brandName, about, url, assets, category, loaded])
 
   useEffect(() => {
     if (url) setScrapeUrl(url)
@@ -154,8 +174,9 @@ export function ProductForm({ onComplete }: Props) {
           webFonts,
           iconNames: (currentAssets.iconUrls ?? []).map((_, i) => `icon-${i}`),
           colorPalette,
-          headings: webHeadings.slice(0, 5),
+          headings: webHeadings.slice(0, 8),
           tagline: webTagline,
+          category: category ?? undefined,
         }),
       })
       if (!res.ok) throw new Error(await res.text())
@@ -263,6 +284,58 @@ export function ProductForm({ onComplete }: Props) {
 
   return (
     <div className="space-y-10">
+
+      {/* Brand Category */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Brand Category</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">What kind of brand are you? This helps the AI pick the right ad style.</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {BRAND_CATEGORIES.map(cat => {
+            const Icon = cat.icon
+            const active = category === cat.id
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setCategory(active ? null : cat.id)}
+                className={`group flex flex-col gap-2 rounded-xl border p-4 text-left transition-all ${
+                  active
+                    ? 'border-[var(--studio-accent)] bg-[var(--studio-accent)]/8 shadow-sm'
+                    : 'border-border bg-card hover:border-[var(--studio-accent)]/50 hover:bg-muted/50'
+                }`}
+              >
+                <div className={`flex size-8 items-center justify-center rounded-lg transition-colors ${
+                  active ? 'bg-[var(--studio-accent)] text-white' : 'bg-muted text-muted-foreground group-hover:bg-[var(--studio-accent)]/10 group-hover:text-[var(--studio-accent)]'
+                }`}>
+                  <Icon className="size-4" />
+                </div>
+                <div>
+                  <p className={`text-xs font-semibold leading-tight ${active ? 'text-[var(--studio-accent)]' : 'text-foreground'}`}>
+                    {cat.label}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{cat.description}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {category && (
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {BRAND_CATEGORIES.find(c => c.id === category)?.label}
+            </span>
+            {' '}selected — AI will use{' '}
+            {['mobile-app', 'saas'].includes(category)
+              ? 'mobile app ad references'
+              : ['physical-product', 'ecommerce', 'beauty-wellness', 'food-beverage'].includes(category)
+              ? 'physical product ad references'
+              : 'general ad references'
+            }.
+          </p>
+        )}
+      </section>
 
       {/* Brand Identity */}
       <section className="space-y-4">

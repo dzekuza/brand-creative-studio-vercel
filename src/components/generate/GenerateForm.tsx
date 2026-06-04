@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PLATFORMS } from '@/lib/platforms'
 import { v4 as uuidv4 } from 'uuid'
-import { saveCreatives } from '@/lib/creative-history'
+import { saveCreatives, loadRestoreSession, clearRestoreSession, type SessionConfig } from '@/lib/creative-history'
 import type { AdType, BrandBible, Creative, ImageModel, ScrapedProduct, UploadedAssets } from '@/types'
 
 const PRODUCTS_KEY = 'brand-creative-studio:scraped-products'
@@ -33,12 +33,13 @@ type Props = {
   brandBible: BrandBible
   assets: UploadedAssets
   onCreativesUpdate: (creatives: Creative[]) => void
+  onGenerateStart?: () => void
   onRegisterApprove: (fn: (id: string) => void) => void
   onRegisterRecompose: (fn: (id: string, headline: string, body: string) => Promise<void>) => void
   onRegisterApproveSketch: (fn: (id: string, sketchIds: string[]) => void) => void
 }
 
-export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegisterApprove, onRegisterRecompose, onRegisterApproveSketch }: Props) {
+export function GenerateForm({ brandBible, assets, onCreativesUpdate, onGenerateStart, onRegisterApprove, onRegisterRecompose, onRegisterApproveSketch }: Props) {
   const [platformId, setPlatformId] = useState(PLATFORMS[0].id)
   const [imageModel, setImageModel] = useState<ImageModel>('gemini-3.1-flash')
   const renderMode = 'ai' as const
@@ -132,6 +133,21 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
     } catch {}
   }, [])
 
+  useEffect(() => {
+    const restore = loadRestoreSession()
+    if (!restore) return
+    clearRestoreSession()
+    setPlatformId(restore.platformId)
+    setImageModel(restore.imageModel)
+    setAdType(restore.adType)
+    setAdContext(restore.adContext)
+    setImagePrompt(restore.imagePrompt)
+    setHeadline(restore.headline)
+    setBody(restore.body)
+    setCount(restore.count)
+    setSelectedProductId(restore.selectedProductId)
+  }, [])
+
   const selectedProduct = scrapedProducts.find(p => p.id === selectedProductId) ?? null
   const effectiveProductImageUrl =
     selectedProduct?.imageUrl ??
@@ -151,6 +167,7 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
   async function generate() {
     if (!imagePrompt) { setError('Image generation prompt is required'); return }
     setError(undefined)
+    onGenerateStart?.()
     setGenerating(true)
 
     const platform = PLATFORMS.find(p => p.id === platformId)!
@@ -189,6 +206,35 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
       })
       if (!imgRes.ok) throw new Error(await imgRes.text())
       const { imageBase64 } = await imgRes.json()
+
+      // Overlay logo via Puppeteer render — the HTML compositor is skipped in AI mode
+      // so the logo must be composited here as a second pass.
+      // We send structured JSON to the server; the render route builds the HTML safely.
+      if (assets.logoUrl) {
+        const logoUrl = assets.logoUrl.startsWith('/')
+          ? `${window.location.origin}${assets.logoUrl}`
+          : assets.logoUrl
+        try {
+          const renderRes = await fetch('/api/render', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              width: platform.width,
+              height: platform.height,
+              logoOverlay: {
+                imageBase64,
+                logoUrl,
+                logoPosition: brandBible.layout.logoPosition,
+              },
+            }),
+          })
+          if (renderRes.ok) {
+            const { pngBase64 } = await renderRes.json()
+            return pngBase64
+          }
+        } catch { /* logo overlay failed — return original image */ }
+      }
+
       return imageBase64
     }
 
@@ -266,7 +312,18 @@ export function GenerateForm({ brandBible, assets, onCreativesUpdate, onRegister
       }
     })
 
-    saveCreatives(final)
+    const sessionConfig: SessionConfig = {
+      platformId,
+      imageModel,
+      adType,
+      adContext,
+      imagePrompt,
+      headline,
+      body,
+      count,
+      selectedProductId,
+    }
+    saveCreatives(final, sessionConfig)
     creativesRef.current = final
     onCreativesUpdate(final)
     setGenerating(false)

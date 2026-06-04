@@ -61,7 +61,7 @@ function SetupPageContent() {
             aria-hidden="true"
             className="pointer-events-none absolute -right-10 -top-10 size-48 rounded-full bg-[var(--studio-accent)]/10 blur-3xl"
           />
-          <div className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="relative flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between lg:p-6">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Brand Setup</h1>
               <p className="text-muted-foreground mt-0.5 text-sm">
@@ -70,7 +70,7 @@ function SetupPageContent() {
             </div>
 
             {/* Step indicators */}
-            <div className="hidden md:flex items-center gap-1 shrink-0">
+            <div className="hidden lg:flex items-center gap-1 shrink-0">
               {STEPS.map((step, i) => {
                 const Icon = step.icon
                 const isActive = i === 0
