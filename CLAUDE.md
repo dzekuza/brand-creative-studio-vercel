@@ -58,6 +58,10 @@ The default Gemini 3.1 path and Imagen 4 go through the Vercel AI Gateway (no pe
 
 Ad-type copy strategy (AIDA/PAS/BAB framing per ad type) has a single source of truth in `src/lib/ad-frameworks.ts` — `imageCopyHint`, `htmlCopyGuidance`, and `bulkFramework` are consumed by generate-image, compose-html, and generate-copy respectively. Don't reintroduce per-route copies.
 
+Root reference design knowledge (distilled from a curated ad-reference library) lives in `src/lib/ad-references.ts` — `adReferenceGuidance(category, withCopy)` returns category-aware proven-pattern guidance (physical-product packshot ads vs app/SaaS device-hero ads vs general). It's injected into generate-image and compose-html as baseline "what good ads look like" design knowledge; the user's brand-setup style refs remain the primary visual style. `category` (a `BrandCategory` from setup, via `loadSetup()`) is threaded from `GenerateForm` into both routes.
+
+Feature/benefit icon strips are opt-in: an "Include feature icons" toggle (`includeIcons`, default off) is threaded into generate-image (full-AI strip) and compose-html (gated feature strip). When off, no icon row is drawn; when on, labels must be product-specific, never generic. Don't bake pixel-dimension hints (e.g. `~80×80px`) into image prompts — models render them as literal on-canvas text.
+
 Text-route temperatures: structured/JSON-extraction routes (brand-bible, scrape-products, review-image, generate-sketches) run at `temperature: 0`; creative-copy routes (generate-copy, and compose-html's copy-generating branch) run hot (~0.9).
 
 ## Tests

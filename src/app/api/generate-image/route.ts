@@ -4,7 +4,8 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { fetchBlobAsset } from '@/lib/fetch-blob'
 import { imageCopyHint } from '@/lib/ad-frameworks'
-import type { BrandBible, ImageModel, ImageProvider, Platform } from '@/types'
+import { adReferenceGuidance } from '@/lib/ad-references'
+import type { BrandBible, BrandCategory, ImageModel, ImageProvider, Platform } from '@/types'
 
 type GenerateImageRequest = {
   prompt: string
@@ -19,6 +20,8 @@ type GenerateImageRequest = {
   aiBody?: string
   adType?: string
   adContext?: string
+  category?: BrandCategory
+  includeIcons?: boolean
 }
 
 const SAFE_UPLOAD_RE = /^\/uploads\/[\w-]+\.(jpg|jpeg|png|webp|svg)$/i
@@ -74,12 +77,13 @@ export async function POST(req: NextRequest) {
       `BRAND TONE: ${body.brandBible.tone}.`,
       `COLOR PALETTE & GRADE: ground the scene in ${colors.background}; let ${colors.primary} and ${colors.accent} read as accent tones in props, surface, or light. Cohesive color grade, no clashing hues.`,
       `TYPOGRAPHY MOOD: ${typography.weight === 'bold' || Number(typography.weight) >= 700 ? 'strong, confident' : 'clean, refined'}.`,
-      `LOGO ZONE: leave clear negative space at the ${layout.logoPosition} corner (~80×80px).`,
+      `LOGO ZONE: keep the ${layout.logoPosition} corner clear of product and text so a brand logo can sit there — leave it as clean negative space. Do NOT draw any box, frame, placeholder, or pixel-dimension label.`,
       compositionGuide,
       cameraBlock,
       `LIGHTING: three-point studio lighting — a large softbox key from the upper-right, a white fill card on the left to open the shadows, and a subtle rim/hair light to separate the product edges from the background. Controlled specular highlights on glossy surfaces, a soft natural contact shadow beneath the product, atmospheric depth.`,
       `SURFACE & MATERIALS: place the product on a tactile, on-brand surface (e.g. honed stone, brushed metal, matte studio sweep, or natural wood as fits the tone); render realistic material reflections and micro-texture.`,
       `PRODUCT PLACEMENT: The product image provided MUST appear naturally in the scene — placed in the composition zone described above, fully visible, sharp, and hero-sized. The product must look like it physically belongs in the environment: match the scene lighting onto the product, add a subtle ground shadow or surface reflection beneath it. Do NOT alter the product's label, colors, or packaging design.`,
+      adReferenceGuidance(body.category, !!body.fullAiMode),
       ...(body.fullAiMode ? [
         `FULL AD RENDER — include all typography and graphic elements directly in the image:`,
         ...(body.adType && !body.aiHeadline ? [
@@ -88,8 +92,12 @@ export async function POST(req: NextRequest) {
           `HEADLINE: "${body.aiHeadline || body.brandBible.tagline || ''}" — render in massive bold type (weight 900), flush-left, brand text color ${colors.text}, occupying the left or lower-left zone of the canvas. Line-height very tight (0.9). One word or phrase may be in accent color ${colors.accent}. Render text crisply with correct spelling.`,
           `BODY COPY: "${body.aiBody || body.brandBible.tone}" — render smaller, clean white text, directly below the headline, max 2 lines.`,
         ]),
-        `BOTTOM ICON STRIP: render 3–4 small circular badges at the bottom of the canvas, each with a minimal white line-art icon and a 2-word white uppercase label below it. Represent product benefits (e.g. energy, natural, premium, protection).`,
-        `BRAND MARK ZONE: leave clear space at the ${layout.logoPosition} corner for the brand logo (approx 120×40px area).`,
+        ...(body.includeIcons ? [
+          `FEATURE ICON STRIP: render 3–4 small circular badges at the bottom of the canvas, each with a minimal white line-art icon and a 1–2 word white uppercase label. The labels MUST describe THIS specific product/campaign's real benefits — never generic filler like "premium", "eco-friendly", or "protection".`,
+        ] : [
+          `NO ICONS: do not add any feature/benefit icon strip, badges, or icon row.`,
+        ]),
+        `BRAND MARK ZONE: keep the ${layout.logoPosition} corner clear (clean negative space) for the brand logo — do NOT draw a box, frame, or size label there.`,
       ] : [
         `ABSOLUTE NO: NO text, NO captions, NO watermarks, NO logos, NO UI overlays.`,
       ]),

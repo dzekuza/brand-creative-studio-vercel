@@ -4,6 +4,7 @@ import { join, sep } from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import { fetchBlobAsset } from '@/lib/fetch-blob'
 import { htmlCopyGuidance } from '@/lib/ad-frameworks'
+import { adReferenceGuidance } from '@/lib/ad-references'
 import type { CompositorInput } from '@/types'
 
 const FONT_MIME: Record<string, string> = {
@@ -205,7 +206,9 @@ If NO product image is provided, do not add any product placeholder.
 
 ## ICON PLACEMENT — FEATURE STRIP
 
-Build a prominent feature badge row at the **bottom of the canvas** (positioned 32–48px from the bottom edge), sitting inside the dark bottom strip of the background image.
+**GATE:** Build the feature/icon strip ONLY if the brand context says "Feature icons: enabled". If it says "Feature icons: disabled", do NOT add any icon strip, badges, or icon row at all — and never invent icons. When disabled, skip this entire section.
+
+When enabled, build a prominent feature badge row at the **bottom of the canvas** (positioned 32–48px from the bottom edge), sitting inside the dark bottom strip of the background image.
 
 **Layout:**
 - Horizontal flex row, left-aligned with 32–40px gap between badges
@@ -228,10 +231,10 @@ Build a prominent feature badge row at the **bottom of the canvas** (positioned 
 
 **If icons are provided (count > 0):**
 - Use the provided SVGs — scale them to 40px inside the circle
-- Infer a 1–2 word label from each icon or from the brand tone
+- Infer a 1–2 word label from each icon, derived from the real product/campaign
 
-**If no icons are provided:**
-- Generate 3–4 minimal inline SVGs (line-art, 24×24 viewBox, single white stroke, stroke-width 1.5, no fill) representing product benefits — e.g. a lightning bolt for energy, a leaf for natural, a shield for protection, a star for premium
+**If enabled but no icons are provided:**
+- Generate 3–4 minimal inline SVGs (line-art, 24×24 viewBox, single white stroke, stroke-width 1.5, no fill) for THIS product's real benefits, with product-specific labels — never generic filler like "premium", "eco-friendly", or "protection"
 - Apply same badge layout above
 
 **VISIBILITY REQUIREMENT:** The feature strip must be clearly readable at a glance. If the background is dark, use full white (not tinted). Never use opacity below 0.85 on the labels.
@@ -278,7 +281,7 @@ function truncateSvg(svg: string, maxChars = 600): string {
 
 export async function POST(req: NextRequest) {
   const input: CompositorInput = await req.json()
-  const { backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform, logoUrl, adType, adContext } = input
+  const { backgroundImageBase64, brandBible, fontUrls, fontNames, iconSvgs, headline, body, platform, logoUrl, adType, adContext, category, includeIcons } = input
   const { colors, typography, layout } = brandBible
 
   const aspectRatio = platform.width / platform.height
@@ -332,6 +335,8 @@ Colors: primary=${colors.primary}, secondary=${colors.secondary}, accent=${color
 Typography: headingSize=${typography.headingSize}, bodySize=${typography.bodySize}, weight=${typography.weight}, letterSpacing=${typography.letterSpacing}
 Layout: padding=${layout.padding}, logoPosition=${layout.logoPosition}
 Brand rules: ${brandBible.rules.slice(0, 2).join('; ')}
+Feature icons: ${includeIcons ? 'enabled' : 'disabled'}
+Reference design guidance: ${adReferenceGuidance(category, true)}
 Heading font: ${fontName} | Body font: ${bodyFontName}
 Font URLs: heading=url('__FONT_DATA_URI__'), body=url('__BODY_FONT_DATA_URI__') — literal placeholders, do NOT expand
 Background image: url('data:image/png;base64,__BG_IMAGE__') — literal placeholder, do NOT expand

@@ -108,6 +108,8 @@ export type CompositorInput = {
   productImageUrl?: string
   adType?: AdType
   adContext?: string
+  category?: BrandCategory
+  includeIcons?: boolean
 }
 
 export type BulkAdCopy = {
