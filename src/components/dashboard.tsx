@@ -45,6 +45,7 @@ export function Dashboard() {
                 size="sm"
                 className="bg-[var(--studio-accent)] text-white hover:opacity-90 active:scale-[0.98] transition-all gap-1.5"
                 render={<a href="/generate" />}
+                nativeButton={false}
               >
                 <SparklesIcon className="size-3.5" />
                 Start generating
@@ -54,6 +55,7 @@ export function Dashboard() {
                 variant="outline"
                 className="gap-1.5"
                 render={<a href="/setup" />}
+                nativeButton={false}
               >
                 <PencilIcon className="size-3.5" />
                 Edit brand

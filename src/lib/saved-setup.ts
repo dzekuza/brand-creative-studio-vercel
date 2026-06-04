@@ -1,4 +1,4 @@
-import type { UploadedAssets } from '@/types'
+import type { BrandCategory, UploadedAssets } from '@/types'
 
 const KEY = 'brand-creative-studio:setup'
 
@@ -7,6 +7,7 @@ export type SavedSetup = {
   about: string
   url: string
   assets: Partial<UploadedAssets>
+  category?: BrandCategory
 }
 
 export function saveSetup(setup: SavedSetup): void {

@@ -44,7 +44,7 @@ export function NavGroup({ label, items }: SidebarNavGroup) {
 									<SidebarMenuSub>
 										{item.subItems.map((subItem) => (
 											<SidebarMenuSubItem key={subItem.title}>
-												<SidebarMenuSubButton isActive={isActive(subItem.path)} render={<a href={subItem.path} />}>
+												<SidebarMenuSubButton isActive={isActive(subItem.path)} render={<a href={subItem.path} />} nativeButton={false}>
 													{subItem.icon}<span>{subItem.title}</span>
 												</SidebarMenuSubButton>
 											</SidebarMenuSubItem>
@@ -53,7 +53,7 @@ export function NavGroup({ label, items }: SidebarNavGroup) {
 								</CollapsibleContent>
 							</>
 						) : (
-							<SidebarMenuButton isActive={isActive(item.path)} render={<a href={item.path} />}>
+							<SidebarMenuButton isActive={isActive(item.path)} render={<a href={item.path} />} nativeButton={false}>
 								{item.icon}<span>{item.title}</span>
 							</SidebarMenuButton>
 						)}

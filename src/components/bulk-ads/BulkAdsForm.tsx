@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { loadBrandBible } from '@/lib/brand-bible'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +11,6 @@ import { Card } from '@/components/ui/card'
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   CheckCircle,
   Download,
   ImageIcon,
@@ -24,49 +22,13 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { BrandBible, BulkAdConfig, BulkAdCopy, ImageModel, ScrapedProduct, UploadedAssets } from '@/types'
 import { PLATFORMS } from '@/lib/platforms'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  'E-commerce / Retail',
-  'SaaS / Software',
-  'Mobile App',
-  'Health & Wellness',
-  'Fashion & Apparel',
-  'Food & Beverage',
-  'Beauty & Cosmetics',
-  'Fitness & Sports',
-  'Finance / Fintech',
-  'Education / EdTech',
-  'Travel & Hospitality',
-  'Real Estate',
-  'Professional Services',
-  'Gaming',
-  'Entertainment',
-  'Automotive',
-  'Home & Garden',
-  'B2B Services',
-]
 
-const AUDIENCE_SUGGESTIONS = [
-  'Millennials 25–40',
-  'Gen Z 18–25',
-  'Parents',
-  'Professionals',
-  'Entrepreneurs',
-  'Small Business Owners',
-  'Students',
-  'Seniors 55+',
-  'Health Conscious',
-  'Tech Savvy',
-  'Budget Shoppers',
-  'Luxury Buyers',
-]
-
-const STEP_LABELS = ['Ad Setup', 'Brand', 'Settings', 'Review']
+const STEP_LABELS = ['Settings', 'Review']
 
 const AD_PLATFORMS = [
   { id: 'facebook', label: 'Facebook' },
@@ -127,15 +89,6 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
           </div>
         )
       })}
-    </div>
-  )
-}
-
-function ColorSwatch({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="size-8 rounded-full border border-border" style={{ backgroundColor: color }} />
-      <span className="text-[10px] text-muted-foreground">{label}</span>
     </div>
   )
 }
@@ -349,8 +302,6 @@ function CopyCard({ copy, assets, brandBible, imageModel, canvasId, scrapedProdu
 // ─── Main Form ─────────────────────────────────────────────────────────────────
 
 export function BulkAdsForm() {
-  const router = useRouter()
-
   const [step, setStep] = useState(1)
   const [bible, setBible] = useState<BrandBible | null>(null)
   const [assets, setAssets] = useState<UploadedAssets | null>(null)
@@ -369,8 +320,6 @@ export function BulkAdsForm() {
     imageModel: 'gemini-2.5-flash',
     canvasId: 'instagram-square',
   })
-  const [audienceChips, setAudienceChips] = useState<string[]>([])
-  const [audienceInput, setAudienceInput] = useState('')
   const [scrapedProducts, setScrapedProducts] = useState<ScrapedProduct[]>([])
   const [bulkProductId, setBulkProductId] = useState<string>('')
 
@@ -386,21 +335,6 @@ export function BulkAdsForm() {
       try { setScrapedProducts(JSON.parse(rawProducts) as ScrapedProduct[]) } catch { /* ignore */ }
     }
   }, [])
-
-  function addAudienceChip(chip: string) {
-    const trimmed = chip.trim()
-    if (!trimmed || audienceChips.includes(trimmed)) return
-    const next = [...audienceChips, trimmed]
-    setAudienceChips(next)
-    setAudienceInput('')
-    setConfig(prev => ({ ...prev, targetAudience: next.join(', ') }))
-  }
-
-  function removeAudienceChip(chip: string) {
-    const next = audienceChips.filter(c => c !== chip)
-    setAudienceChips(next)
-    setConfig(prev => ({ ...prev, targetAudience: next.join(', ') }))
-  }
 
   function togglePlatform(id: string) {
     setConfig(prev => ({
@@ -447,7 +381,7 @@ export function BulkAdsForm() {
       const data = await res.json() as { copies?: BulkAdCopy[]; error?: string }
       if (!res.ok || !data.copies) throw new Error(data.error ?? 'Generation failed')
       setCopies(data.copies)
-      setStep(4)
+      setStep(2)
     } catch (err) {
       setCopyError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -493,244 +427,31 @@ export function BulkAdsForm() {
     generatingAllRef.current = false
   }
 
-  const step1Valid = config.subcategory.trim().length > 0 && audienceChips.length > 0
-  const step3Valid = config.platforms.length > 0 && config.count >= 1 && config.count <= 20
+const step3Valid = config.platforms.length > 0 && config.count >= 1 && config.count <= 20
 
   const doneCount = copies.filter(c => c.status === 'done').length
 
-  // ── Step 1: Ad Setup ─────────────────────────────────────────────────────────
+  // ── Step 1: Batch Settings ────────────────────────────────────────────────────
   function renderStep1() {
-    return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight mb-1">Ad Setup</h2>
-          <p className="text-sm text-muted-foreground">Tell us about what you&apos;re advertising.</p>
-        </div>
-
-        <div className="flex flex-col gap-5">
-          {/* Product or Service */}
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium">What are you advertising?</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['product', 'service'] as const).map(type => {
-                const selected = config.productType === type
-                return (
-                  <button
-                    key={type}
-                    onClick={() => setConfig(prev => ({ ...prev, productType: type }))}
-                    className={[
-                      'flex items-center gap-2.5 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all',
-                      selected
-                        ? 'border-primary bg-primary/5 text-foreground shadow-sm'
-                        : 'border-border bg-card text-muted-foreground hover:border-border hover:bg-accent/40 hover:text-foreground',
-                    ].join(' ')}
-                  >
-                    <span className={[
-                      'size-4 rounded-full border-2 flex-shrink-0 transition-colors',
-                      selected ? 'border-primary bg-primary' : 'border-muted-foreground/30',
-                    ].join(' ')} />
-                    <span className="capitalize">{type}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Category */}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm font-medium">Category</Label>
-            <Select
-              value={config.subcategory}
-              onValueChange={(v) => setConfig(prev => ({ ...prev, subcategory: v ?? '' }))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a category…">
-                  {(v: string | null) => v || 'Select a category…'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map(cat => (
-                  <SelectItem key={cat} value={cat} label={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Target Audience — chips */}
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium">Target Audience</Label>
-
-            {/* Chip suggestions */}
-            <div className="flex flex-wrap gap-1.5">
-              {AUDIENCE_SUGGESTIONS.map(s => {
-                const active = audienceChips.includes(s)
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => active ? removeAudienceChip(s) : addAudienceChip(s)}
-                    className={[
-                      'px-2.5 py-1 rounded-full border text-xs font-medium transition-all',
-                      active
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground',
-                    ].join(' ')}
-                  >
-                    {s}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Custom chip input */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="Add custom audience…"
-                value={audienceInput}
-                onChange={e => setAudienceInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault()
-                    addAudienceChip(audienceInput)
-                  }
-                }}
-                className="text-sm h-9 flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => addAudienceChip(audienceInput)}
-                disabled={!audienceInput.trim()}
-                className="h-9 px-3 text-xs"
-              >
-                Add
-              </Button>
-            </div>
-
-            {/* Selected chips */}
-            {audienceChips.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-2.5 rounded-lg bg-muted/40 border border-border">
-                {audienceChips.map(chip => (
-                  <span
-                    key={chip}
-                    className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-full bg-background border border-border text-xs font-medium"
-                  >
-                    {chip}
-                    <button
-                      type="button"
-                      onClick={() => removeAudienceChip(chip)}
-                      className="size-3.5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <X className="size-2.5" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            {audienceChips.length === 0 && (
-              <p className="text-[11px] text-muted-foreground">Select from suggestions or type a custom segment and press Enter</p>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Step 2: Brand ─────────────────────────────────────────────────────────────
-  function renderStep2() {
-    if (!bible) {
-      return (
-        <div className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold mb-1">Brand</h2>
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
-            <AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-700">No brand set up</p>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Set up your brand first so we can match tone and style.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 text-xs"
-                onClick={() => router.push('/setup')}
-              >
-                Go to Brand Setup
-              </Button>
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-lg font-semibold mb-1">Brand</h2>
-          <p className="text-sm text-muted-foreground">Confirm your brand is loaded correctly.</p>
-        </div>
-
-        <Card className="p-4 flex flex-col gap-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium">Tone</p>
-              <p className="text-sm text-muted-foreground capitalize">{bible.tone}</p>
-            </div>
-            {bible.tagline && (
-              <div className="text-right">
-                <p className="text-sm font-medium">Tagline</p>
-                <p className="text-sm text-muted-foreground italic">&ldquo;{bible.tagline}&rdquo;</p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Brand Colors</p>
-            <div className="flex items-center gap-4">
-              <ColorSwatch color={bible.colors.primary} label="Primary" />
-              <ColorSwatch color={bible.colors.secondary} label="Secondary" />
-              <ColorSwatch color={bible.colors.accent} label="Accent" />
-              <ColorSwatch color={bible.colors.background} label="BG" />
-              <ColorSwatch color={bible.colors.text} label="Text" />
-            </div>
-          </div>
-
-          {bible.rules.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">Brand Rules</p>
-              <ul className="flex flex-col gap-1">
-                {bible.rules.slice(0, 4).map((rule, i) => (
-                  <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                    <span className="mt-0.5 size-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-                    {rule}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Card>
-
-        {!assets && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-2">
-            <AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              No product image found — image generation will use text prompts only.
-            </p>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ── Step 3: Batch Settings ────────────────────────────────────────────────────
-  function renderStep3() {
     return (
       <div className="flex flex-col gap-6">
         <div>
           <h2 className="text-lg font-semibold mb-1">Batch Settings</h2>
           <p className="text-sm text-muted-foreground">Choose platforms and how many copies to generate.</p>
         </div>
+
+        {!bible && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+            <AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-700">No brand set up</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Set up your brand first so we can match tone and style.</p>
+              <a href="/setup" className="inline-flex items-center mt-3 px-3 py-1.5 rounded-md border border-border bg-background text-xs font-medium hover:bg-accent transition-colors">
+                Go to Brand Setup
+              </a>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-5">
           <div>
@@ -852,8 +573,8 @@ export function BulkAdsForm() {
     )
   }
 
-  // ── Step 4: Review & Generate Images ─────────────────────────────────────────
-  function renderStep4() {
+  // ── Step 2: Review & Generate Images ─────────────────────────────────────────
+  function renderStep2() {
     const anyGenerating = copies.some(c => c.status === 'generating-image')
 
     return (
@@ -964,70 +685,47 @@ export function BulkAdsForm() {
         </div>
       </div>
 
-      {step < 4 ? (
+      {step < 2 ? (
         /* Wizard layout: centered narrow card */
         <div className="max-w-xl mx-auto">
-          <StepIndicator current={step} total={4} />
+          <StepIndicator current={step} total={2} />
 
           <div className="rounded-2xl border border-border bg-card p-6">
             {step === 1 && renderStep1()}
-            {step === 2 && renderStep2()}
-            {step === 3 && renderStep3()}
           </div>
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
+            <div />
+
             <Button
-              variant="ghost"
-              onClick={() => setStep(s => Math.max(1, s - 1))}
-              disabled={step === 1}
+              onClick={generateCopies}
+              disabled={!step3Valid || generatingCopies || !bible}
               className="gap-1.5 text-sm"
             >
-              <ArrowLeft className="size-4" />
-              Back
+              {generatingCopies
+                ? <><Loader2 className="size-4 animate-spin" /> Generating Copies…</>
+                : <><Sparkles className="size-4" /> Generate Copies</>
+              }
             </Button>
-
-            {step < 3 && (
-              <Button
-                onClick={() => setStep(s => s + 1)}
-                disabled={step === 1 && !step1Valid}
-                className="gap-1.5 text-sm"
-              >
-                Next
-                <ArrowRight className="size-4" />
-              </Button>
-            )}
-
-            {step === 3 && (
-              <Button
-                onClick={generateCopies}
-                disabled={!step3Valid || generatingCopies || !bible}
-                className="gap-1.5 text-sm"
-              >
-                {generatingCopies
-                  ? <><Loader2 className="size-4 animate-spin" /> Generating Copies…</>
-                  : <><Sparkles className="size-4" /> Generate Copies</>
-                }
-              </Button>
-            )}
           </div>
         </div>
       ) : (
         /* Full-width results */
         <div>
           <div className="flex items-center gap-3 mb-6">
-            <StepIndicator current={step} total={4} />
+            <StepIndicator current={step} total={2} />
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setStep(3)}
+              onClick={() => setStep(1)}
               className="gap-1.5 text-xs ml-auto text-muted-foreground"
             >
               <ArrowLeft className="size-3" />
               Back to Settings
             </Button>
           </div>
-          {renderStep4()}
+          {renderStep2()}
         </div>
       )}
     </div>

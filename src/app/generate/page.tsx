@@ -30,7 +30,9 @@ export default function GeneratePage() {
   const [bible, setBible]         = useState<BrandBible | null>(null)
   const [assets, setAssets]       = useState<UploadedAssets | null>(null)
   const [creatives, setCreatives] = useState<Creative[]>([])
+  const [history, setHistory]     = useState<Creative[][]>([])
   const [provider, setProvider]   = useState<ImageProvider>('gateway')
+  const creativesSnapshotRef      = useRef<Creative[]>([])
 
   const approveRef        = useRef<(id: string) => void>(() => {})
   const recomposeRef      = useRef<(id: string, h: string, b: string) => Promise<void>>(() => Promise.resolve())
@@ -75,6 +77,7 @@ export default function GeneratePage() {
                 size="sm"
                 className="gap-1.5 text-xs"
                 render={<a href="/setup" />}
+                nativeButton={false}
               >
                 <PencilIcon className="size-3" />
                 Edit brand
@@ -96,7 +99,16 @@ export default function GeneratePage() {
                 <GenerateForm
                   brandBible={bible}
                   assets={assets}
-                  onCreativesUpdate={setCreatives}
+                  onCreativesUpdate={batch => {
+                    creativesSnapshotRef.current = batch
+                    setCreatives(batch)
+                  }}
+                  onGenerateStart={() => {
+                    const done = creativesSnapshotRef.current.filter(c => c.status === 'done')
+                    if (done.length > 0) setHistory(h => [done, ...h])
+                    creativesSnapshotRef.current = []
+                    setCreatives([])
+                  }}
                   onRegisterApprove={fn => { approveRef.current = fn }}
                   onRegisterRecompose={fn => { recomposeRef.current = fn }}
                   onRegisterApproveSketch={fn => { approveSketchRef.current = fn }}
@@ -106,31 +118,52 @@ export default function GeneratePage() {
           </div>
 
           {/* Results area */}
-          <div>
-            {creatives.length === 0 ? (
+          <div className="flex flex-col gap-8">
+            {creatives.length === 0 && history.length === 0 ? (
               <ResultsEmptyState />
             ) : (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {doneCount > 0
-                      ? `${doneCount} of ${creatives.length} ready`
-                      : `Generating ${creatives.length} creative${creatives.length > 1 ? 's' : ''}…`}
-                  </p>
-                  {doneCount > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-[11px] text-muted-foreground">Live</span>
+              <>
+                {creatives.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {doneCount > 0
+                          ? `${doneCount} of ${creatives.length} ready`
+                          : `Generating ${creatives.length} creative${creatives.length > 1 ? 's' : ''}…`}
+                      </p>
+                      {doneCount > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[11px] text-muted-foreground">Live</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <CreativeGrid
-                  creatives={creatives}
-                  onApprove={id => approveRef.current(id)}
-                  onRecompose={(id, h, b) => recomposeRef.current(id, h, b)}
-                  onApproveSketch={(id, ids) => approveSketchRef.current(id, ids)}
-                />
-              </div>
+                    <CreativeGrid
+                      creatives={creatives}
+                      onApprove={id => approveRef.current(id)}
+                      onRecompose={(id, h, b) => recomposeRef.current(id, h, b)}
+                      onApproveSketch={(id, ids) => approveSketchRef.current(id, ids)}
+                    />
+                  </div>
+                )}
+
+                {history.map((batch, i) => (
+                  <div key={i}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <p className="text-xs font-medium text-muted-foreground shrink-0">
+                        Batch {history.length - i}
+                      </p>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                    <CreativeGrid
+                      creatives={batch}
+                      onApprove={() => {}}
+                      onRecompose={() => Promise.resolve()}
+                      onApproveSketch={() => {}}
+                    />
+                  </div>
+                ))}
+              </>
             )}
           </div>
         </div>

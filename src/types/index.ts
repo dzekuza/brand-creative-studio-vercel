@@ -26,6 +26,21 @@ export type BrandBible = {
   tone: string
   tagline?: string
   rules: string[]
+  // Long-form brief fields
+  brandStory?: string
+  mission?: string
+  targetAudience?: string
+  personality?: string[]
+  voiceAndTone?: {
+    description: string
+    dos: string[]
+    donts: string[]
+  }
+  imageryStyle?: string
+  messagingPillars?: string[]
+  competitorDifferentiators?: string[]
+  colorUsageNotes?: string
+  typographyNotes?: string
 }
 
 export type UploadedAssets = {
@@ -36,6 +51,15 @@ export type UploadedAssets = {
   iconUrls: string[]
   logoUrl?: string
 }
+
+export type BrandCategory =
+  | 'physical-product'
+  | 'mobile-app'
+  | 'saas'
+  | 'ecommerce'
+  | 'service'
+  | 'beauty-wellness'
+  | 'food-beverage'
 
 export type AdType = 'brand-awareness' | 'sales' | 'product-launch' | 'engagement' | 'custom'
 
